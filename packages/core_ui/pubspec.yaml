@@ -1,0 +1,23 @@
+name: core_ui
+description: Shared widgets, theme, responsive layout helpers, and form utilities for the RMS Flutter monorepo.
+publish_to: none
+version: 0.1.0
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_bloc: "^8.1.6"
+  go_router: "^14.6.1"
+  models:
+    path: ../models
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  mocktail: "^1.0.4"
+
+flutter:
+  # core_ui may expose fonts or assets shared across apps in the future.

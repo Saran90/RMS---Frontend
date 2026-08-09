@@ -1,0 +1,83 @@
+{
+  "@@locale": "en",
+  "appTitle": "RMS Staff Portal",
+  "@appTitle": {
+    "description": "The title of the application"
+  },
+  "errorGeneric": "An error occurred. Please try again.",
+  "@errorGeneric": {
+    "description": "Generic error message shown in snackbars"
+  },
+  "errorServerError": "Server error, please try again.",
+  "@errorServerError": {
+    "description": "Server 5xx error message"
+  },
+  "errorRequestTimeout": "Request timed out.",
+  "@errorRequestTimeout": {
+    "description": "Timeout error message"
+  },
+  "errorOffline": "No internet connection.",
+  "@errorOffline": {
+    "description": "Offline state error message"
+  },
+  "errorInternetRequired": "An internet connection is required to perform this action.",
+  "@errorInternetRequired": {
+    "description": "Tooltip shown on disabled write actions while offline"
+  },
+  "errorAccessDenied": "Access Denied.",
+  "@errorAccessDenied": {
+    "description": "Role-based access denied message"
+  },
+  "buttonRetry": "Retry",
+  "@buttonRetry": {
+    "description": "Retry button label"
+  },
+  "buttonConfirm": "Confirm",
+  "@buttonConfirm": {
+    "description": "Confirm button label"
+  },
+  "buttonCancel": "Cancel",
+  "@buttonCancel": {
+    "description": "Cancel button label"
+  },
+  "noDataForRange": "No data for selected range.",
+  "@noDataForRange": {
+    "description": "Empty-state message shown on reports with no data"
+  },
+  "reservationsTitle": "Reservations",
+  "@reservationsTitle": {
+    "description": "Title of the reservations screen"
+  },
+  "reservationsEmpty": "No reservations",
+  "@reservationsEmpty": {
+    "description": "Empty-state message shown when there are no reservations"
+  },
+  "reservationsEmptyHint": "Bookings will appear here",
+  "@reservationsEmptyHint": {
+    "description": "Subtitle shown on the empty reservations list"
+  },
+  "reservationEditButton": "Edit Reservation",
+  "@reservationEditButton": {
+    "description": "Button label to open the reservation edit sheet"
+  },
+  "reservationDisableButton": "Disable Reservation",
+  "@reservationDisableButton": {
+    "description": "Button label to disable a reservation (soft-delete, audit-preserving)"
+  },
+  "reservationReenableButton": "Re-enable Reservation",
+  "@reservationReenableButton": {
+    "description": "Button label to re-enable a previously disabled reservation"
+  },
+  "reservationDisabledSnack": "Reservation disabled",
+  "@reservationDisabledSnack": {
+    "description": "Snackbar shown after a reservation is successfully disabled"
+  },
+  "reservationDisableConfirmTitle": "Disable Reservation",
+  "@reservationDisableConfirmTitle": {
+    "description": "Title of the confirm-disable dialog"
+  },
+  "reservationDisableReasonLabel": "Reason (optional)",
+  "@reservationDisableReasonLabel": {
+    "description": "Label for the optional disable-reason input"
+  }
+}

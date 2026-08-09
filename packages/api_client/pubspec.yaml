@@ -1,0 +1,21 @@
+name: api_client
+description: Dio-based HTTP client for the RMS Flutter monorepo (auth interceptor, error mapping, request tracing).
+publish_to: none
+version: 0.1.0
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+
+dependencies:
+  dio: "^5.7.0"
+  uuid: "^4.5.1"
+  mutex: "^3.1.0"
+
+  # Internal packages
+  models:
+    path: ../models
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  mocktail: "^1.0.4"

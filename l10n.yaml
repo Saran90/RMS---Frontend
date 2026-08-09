@@ -1,0 +1,12 @@
+# Flutter localizations configuration.
+# ARB files live under apps/staff_portal/lib/l10n/ (and customer_app equivalent).
+# Code is generated into the .dart_tool/flutter_gen/gen_l10n/ directory.
+
+arb-dir: apps/staff_portal/lib/l10n
+template-arb-file: app_en.arb
+output-localization-file: app_localizations.dart
+output-class: AppLocalizations
+output-dir: apps/staff_portal/lib/gen/l10n
+nullable-getter: false
+# Synthetic package is disabled so we import the generated class directly.
+synthetic-package: false

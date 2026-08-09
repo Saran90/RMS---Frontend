@@ -1,0 +1,27 @@
+name: auth
+description: AuthBloc, TokenRepository, and secure storage wrapper for the RMS Flutter monorepo.
+publish_to: none
+version: 0.1.0
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_bloc: "^8.1.6"
+  flutter_secure_storage: "^9.2.2"
+  dart_jsonwebtoken: "^2.14.3"
+
+  # Internal packages
+  api_client:
+    path: ../api_client
+  models:
+    path: ../models
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  bloc_test: "^9.1.7"
+  mocktail: "^1.0.4"
+  glados: "^1.1.7"

@@ -1,0 +1,22 @@
+name: customer_app
+description: Customer Self-Ordering App stub — future app in the RMS Flutter monorepo.
+publish_to: none
+version: 0.1.0+1
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+  flutter: ">=3.27.0"
+
+# NOTE: Per Req 1.3, apps/customer_app intentionally has NO path dependencies
+# on apps/staff_portal or any of the shared packages at this stub stage.
+dependencies:
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: "^4.0.0"
+
+flutter:
+  uses-material-design: true

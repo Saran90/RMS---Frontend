@@ -1,0 +1,44 @@
+name: rms_flutter_frontend
+description: RMS Flutter monorepo root — Staff/Owner Management Portal and Customer App.
+publish_to: none
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+  flutter: ">=3.27.0"
+
+# Flutter 3.27+ monorepo workspace declaration.
+# Each entry is a path to a sub-package that participates in the workspace.
+workspace:
+  - apps/staff_portal
+  - apps/customer_app
+  - packages/models
+  - packages/api_client
+  - packages/auth
+  - packages/core_ui
+
+# Root-level path dependencies give the IDE a single resolution context.
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Internal packages
+  models:
+    path: packages/models
+  api_client:
+    path: packages/api_client
+  auth:
+    path: packages/auth
+  core_ui:
+    path: packages/core_ui
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: "^4.0.0"
+  fast_check: "^0.2.0"
+  mocktail: "^1.0.4"
+  bloc_test: "^9.1.7"
+  build_runner: "^2.4.13"
+
+flutter:
+  generate: true  # enables l10n code generation

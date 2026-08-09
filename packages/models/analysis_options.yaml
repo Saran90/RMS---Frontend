@@ -1,0 +1,7 @@
+include: ../../analysis_options.yaml
+
+analyzer:
+  errors:
+    # @JsonKey annotations inside freezed const factory constructors trigger
+    # this lint as a false-positive; suppress it package-wide.
+    invalid_annotation_target: ignore
