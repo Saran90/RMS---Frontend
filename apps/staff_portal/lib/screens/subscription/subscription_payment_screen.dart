@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:staff_portal/onboarding/onboarding_repository.dart';
+import 'package:staff_portal/utils/money_parser.dart';
 import 'package:staff_portal/onboarding/razorpay_payment_handler.dart';
 import 'package:staff_portal/router/app_router.dart';
 import 'package:staff_portal/subscription/subscription_guard_cubit.dart';
@@ -88,24 +89,20 @@ class _SubscriptionPaymentScreenState extends State<SubscriptionPaymentScreen> {
 
     final tokenRepo = context.read<SecureTokenRepository>();
     final onboardingRepo = context.read<OnboardingRepository>();
-    final guardRestaurantId = switch (
-        context.read<SubscriptionGuardCubit>().state) {
-      SubscriptionGuardPaymentRequired(:final restaurantId) => restaurantId,
-      _ => null,
-    };
 
     try {
+      if (!tokenRepo.isTenantTokenValid()) {
+        _setStateIfMounted(() {
+          _loading = false;
+          _error = 'Select a restaurant to manage subscription payment.';
+        });
+        return;
+      }
+
       final tenantToken = await tokenRepo.getTenantToken();
-      final restaurantIdFromJwt = tenantToken != null &&
-              tokenRepo.isTenantTokenValid()
+      final restaurantId = tenantToken != null
           ? SecureTokenRepository.extractRestaurantId(tenantToken)
           : null;
-
-      String? restaurantId = restaurantIdFromJwt;
-
-      if (restaurantId == null || restaurantId.isEmpty) {
-        restaurantId = guardRestaurantId;
-      }
 
       if (restaurantId == null || restaurantId.isEmpty) {
         _setStateIfMounted(() {
@@ -186,7 +183,7 @@ class _SubscriptionPaymentScreenState extends State<SubscriptionPaymentScreen> {
         _loading = false;
         _statusMessage = 'Complete payment in the Razorpay window…';
       });
-      _razorpay?.open(payment);
+      _razorpay?.open(payment.toCheckoutParams());
     } on ApiException catch (e) {
       _setStateIfMounted(() {
         _loading = false;

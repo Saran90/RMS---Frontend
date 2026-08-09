@@ -7,10 +7,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:models/models.dart';
 import 'package:staff_portal/orders/order_bloc.dart';
+import 'package:staff_portal/orders/order_design.dart';
 
 /// Orders list screen with pagination, filters, and infinite scroll.
-///
-/// Requirements: 9.1, 9.2, 9.3, 9.4
 class OrdersScreen extends StatelessWidget {
   const OrdersScreen({super.key});
 
@@ -46,7 +45,6 @@ class _OrdersViewState extends State<_OrdersView> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // Refresh when app comes to foreground
     if (state == AppLifecycleState.resumed) {
       _refreshOrders();
     }
@@ -55,7 +53,6 @@ class _OrdersViewState extends State<_OrdersView> with WidgetsBindingObserver {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Refresh whenever this route becomes active (user navigates back)
     final modalRoute = ModalRoute.of(context);
     if (modalRoute?.isCurrent == true) {
       _refreshOrders();
@@ -63,7 +60,6 @@ class _OrdersViewState extends State<_OrdersView> with WidgetsBindingObserver {
   }
 
   void _refreshOrders() {
-    // Only refresh if we have a loaded state (preserve filters)
     final bloc = context.read<OrderBloc>();
     final currentState = bloc.state;
     if (currentState is OrderListLoaded) {
@@ -77,26 +73,11 @@ class _OrdersViewState extends State<_OrdersView> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.surface,
-      appBar: AppBar(
-        title: const Text('Orders'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Refresh',
-            onPressed: () => context.read<OrderBloc>().add(
-                  const OrderListRequested(),
-                ),
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => context.go('/orders/create'),
-        tooltip: 'New Order',
-        child: const Icon(Icons.add),
-      ),
+      backgroundColor: orderBg,
       body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          const _OrdersPageHeader(),
           const _FilterBar(),
           Expanded(
             child: BlocBuilder<OrderBloc, OrderState>(
@@ -130,7 +111,140 @@ class _OrdersViewState extends State<_OrdersView> with WidgetsBindingObserver {
   }
 }
 
-// ── Filter bar (Req 9.2) ──────────────────────────────────────────────────────
+// ── Page header ───────────────────────────────────────────────────────────────
+
+class _OrdersPageHeader extends StatelessWidget {
+  const _OrdersPageHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<OrderBloc, OrderState>(
+      builder: (context, state) {
+        final orders = switch (state) {
+          OrderListLoaded(:final orders) => orders,
+          _ => <Order>[],
+        };
+
+        final active = orders
+            .where((o) =>
+                o.status != OrderStatus.completed &&
+                o.status != OrderStatus.cancelled)
+            .length;
+        final value = orders.fold<double>(0, (s, o) => s + o.subtotal);
+
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Orders',
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                            color: orderTitle,
+                            letterSpacing: -0.3,
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          'Track and manage live orders',
+                          style: TextStyle(fontSize: 12.5, color: orderMuted),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: () => context
+                            .read<OrderBloc>()
+                            .add(const OrderListRequested()),
+                        icon: const Icon(Icons.refresh, size: 16),
+                        label: const Text('Refresh'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: orderTitle,
+                          side: const BorderSide(color: orderBorder),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                          textStyle: const TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      FilledButton.icon(
+                        onPressed: () => context.go('/orders/create'),
+                        icon: const Icon(Icons.add, size: 18),
+                        label: const Text('New order'),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: orderAccent,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 10,
+                          ),
+                          textStyle: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: OrderStatCard(
+                      label: 'On this page',
+                      value: '${orders.length}',
+                      icon: Icons.list_alt,
+                      accent: orderAccent,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: OrderStatCard(
+                      label: 'Active',
+                      value: '$active',
+                      icon: Icons.bolt_outlined,
+                      accent: AppTheme.warning,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: OrderStatCard(
+                      label: 'Page value',
+                      value: '₹${value.toStringAsFixed(0)}',
+                      icon: Icons.currency_rupee,
+                      accent: AppTheme.success,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ── Filter bar ────────────────────────────────────────────────────────────────
 
 class _FilterBar extends StatefulWidget {
   const _FilterBar();
@@ -143,62 +257,99 @@ class _FilterBarState extends State<_FilterBar> {
   String? _selectedType;
   String? _selectedStatus;
 
+  void _applyType(String? type) {
+    setState(() => _selectedType = type);
+    context.read<OrderBloc>().add(
+          OrderListRequested(
+            orderType: type,
+            status: _selectedStatus,
+          ),
+        );
+  }
+
+  void _applyStatus(String? status) {
+    setState(() => _selectedStatus = status);
+    context.read<OrderBloc>().add(
+          OrderListRequested(
+            orderType: _selectedType,
+            status: status,
+          ),
+        );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(AppTheme.spacing16),
-      decoration: const BoxDecoration(
-        color: AppTheme.cardSurface,
-        border: Border(bottom: BorderSide(color: AppTheme.border)),
-      ),
-      child: Row(
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: _FilterDropdown(
-              label: 'Type',
-              value: _selectedType,
-              items: const {
-                null: 'All Types',
-                'dine_in': 'Dine-in',
-                'takeaway': 'Takeaway',
-                'delivery': 'Delivery',
-              },
-              onChanged: (value) {
-                setState(() => _selectedType = value);
-                // Reset to page 1 on filter change (Req 9.2)
-                context.read<OrderBloc>().add(
-                      OrderListRequested(
-                        orderType: value,
-                        status: _selectedStatus,
-                      ),
-                    );
-              },
+          const Text(
+            'Type',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: orderMuted,
             ),
           ),
-          const SizedBox(width: AppTheme.spacing12),
-          Expanded(
-            child: _FilterDropdown(
-              label: 'Status',
-              value: _selectedStatus,
-              items: const {
-                null: 'All Statuses',
-                'pending': 'Pending',
-                'confirmed': 'Confirmed',
-                'preparing': 'Preparing',
-                'ready': 'Ready',
-                'served': 'Served',
-                'completed': 'Completed',
-              },
-              onChanged: (value) {
-                setState(() => _selectedStatus = value);
-                // Reset to page 1 on filter change (Req 9.2)
-                context.read<OrderBloc>().add(
-                      OrderListRequested(
-                        orderType: _selectedType,
-                        status: value,
-                      ),
-                    );
-              },
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              OrderChoiceChip(
+                label: 'All',
+                selected: _selectedType == null,
+                onTap: () => _applyType(null),
+              ),
+              OrderChoiceChip(
+                label: 'Dine-in',
+                selected: _selectedType == 'dine_in',
+                onTap: () => _applyType('dine_in'),
+              ),
+              OrderChoiceChip(
+                label: 'Takeaway',
+                selected: _selectedType == 'takeaway',
+                onTap: () => _applyType('takeaway'),
+              ),
+              OrderChoiceChip(
+                label: 'Delivery',
+                selected: _selectedType == 'delivery',
+                onTap: () => _applyType('delivery'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Status',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: orderMuted,
+            ),
+          ),
+          const SizedBox(height: 8),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                OrderChoiceChip(
+                  label: 'All',
+                  selected: _selectedStatus == null,
+                  onTap: () => _applyStatus(null),
+                ),
+                const SizedBox(width: 8),
+                ..._statusFilters.map((f) {
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: OrderChoiceChip(
+                      label: f.label,
+                      selected: _selectedStatus == f.value,
+                      onTap: () => _applyStatus(f.value),
+                    ),
+                  );
+                }),
+              ],
             ),
           ),
         ],
@@ -207,43 +358,20 @@ class _FilterBarState extends State<_FilterBar> {
   }
 }
 
-class _FilterDropdown extends StatelessWidget {
-  const _FilterDropdown({
-    required this.label,
-    required this.value,
-    required this.items,
-    required this.onChanged,
-  });
-
+class _StatusFilter {
+  const _StatusFilter(this.label, this.value);
   final String label;
-  final String? value;
-  final Map<String?, String> items;
-  final ValueChanged<String?> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return DropdownButtonFormField<String?>(
-      decoration: InputDecoration(
-        labelText: label,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 12,
-          vertical: 8,
-        ),
-        border: const OutlineInputBorder(),
-      ),
-      initialValue: value,
-      items: items.entries
-          .map(
-            (e) => DropdownMenuItem<String?>(
-              value: e.key,
-              child: Text(e.value),
-            ),
-          )
-          .toList(),
-      onChanged: onChanged,
-    );
-  }
+  final String value;
 }
+
+const _statusFilters = [
+  _StatusFilter('Pending', 'pending'),
+  _StatusFilter('Confirmed', 'confirmed'),
+  _StatusFilter('Preparing', 'preparing'),
+  _StatusFilter('Ready', 'ready'),
+  _StatusFilter('Served', 'served'),
+  _StatusFilter('Completed', 'completed'),
+];
 
 // ── Loading view ──────────────────────────────────────────────────────────────
 
@@ -253,21 +381,21 @@ class _LoadingView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListView(
-      padding: const EdgeInsets.all(AppTheme.spacing16),
+      padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
       children: const [
-        LoadingSkeletonCard(height: 88),
-        SizedBox(height: AppTheme.spacing8),
-        LoadingSkeletonCard(height: 88),
-        SizedBox(height: AppTheme.spacing8),
-        LoadingSkeletonCard(height: 88),
-        SizedBox(height: AppTheme.spacing8),
-        LoadingSkeletonCard(height: 88),
+        LoadingSkeletonCard(height: 72),
+        SizedBox(height: 10),
+        LoadingSkeletonCard(height: 72),
+        SizedBox(height: 10),
+        LoadingSkeletonCard(height: 72),
+        SizedBox(height: 10),
+        LoadingSkeletonCard(height: 72),
       ],
     );
   }
 }
 
-// ── Orders list with infinite scroll (Req 9.1, 9.3, 9.4) ─────────────────────
+// ── Orders list ───────────────────────────────────────────────────────────────
 
 class _OrdersList extends StatelessWidget {
   const _OrdersList({
@@ -283,7 +411,7 @@ class _OrdersList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (orders.isEmpty) {
-      return const _EmptyOrders();
+      return const OrderEmptyState();
     }
 
     return Column(
@@ -294,301 +422,27 @@ class _OrdersList extends StatelessWidget {
             isLoading: isLoadingMore,
             onEndReached: hasReachedEnd
                 ? null
-                : () {
-                    // Load next page when bottom reached (Req 9.3)
-                    context
-                        .read<OrderBloc>()
-                        .add(const OrderNextPageRequested());
-                  },
+                : () => context
+                    .read<OrderBloc>()
+                    .add(const OrderNextPageRequested()),
             itemBuilder: (ctx, order) => Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppTheme.spacing16,
-                vertical: AppTheme.spacing4,
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
+              child: OrderListTile(
+                order: order,
+                onTap: () => context.go('/orders/${order.id}'),
               ),
-              child: _OrderCard(order: order),
             ),
           ),
         ),
-        // Show "No more orders" indicator when last page reached (Req 9.4)
         if (hasReachedEnd)
-          Container(
-            padding: const EdgeInsets.all(AppTheme.spacing16),
+          Padding(
+            padding: const EdgeInsets.all(16),
             child: Text(
               'No more orders',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppTheme.mutedText,
-                  ),
+              style: TextStyle(fontSize: 12, color: orderMuted),
             ),
           ),
       ],
-    );
-  }
-}
-
-// ── Order card (Req 9.1) ──────────────────────────────────────────────────────
-
-class _OrderCard extends StatelessWidget {
-  const _OrderCard({required this.order});
-  final Order order;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      elevation: 0,
-      color: AppTheme.cardSurface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppTheme.radiusCard),
-        side: const BorderSide(color: AppTheme.border),
-      ),
-      child: InkWell(
-        onTap: () => context.go('/orders/${order.id}'),
-        borderRadius: BorderRadius.circular(AppTheme.radiusCard),
-        child: Padding(
-          padding: const EdgeInsets.all(AppTheme.spacing16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  // Left section: order number + type badge
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '#${order.id.substring(0, 8).toUpperCase()}',
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                        const SizedBox(height: AppTheme.spacing4),
-                        _TypeBadge(type: order.orderType),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: AppTheme.spacing16),
-                  // Right section: status badge + total amount
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      _StatusBadgeWidget(status: order.status),
-                      const SizedBox(height: AppTheme.spacing4),
-                      Text(
-                        '₹${order.subtotal.toStringAsFixed(2)}',
-                        style:
-                            Theme.of(context).textTheme.titleMedium?.copyWith(
-                                  color: AppTheme.primary,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              // Items section
-              if (order.items.isNotEmpty) ...[
-                const SizedBox(height: AppTheme.spacing12),
-                const Divider(height: 1),
-                const SizedBox(height: AppTheme.spacing12),
-                _OrderItemsList(items: order.items),
-              ] else ...[
-                const SizedBox(height: AppTheme.spacing8),
-                Text(
-                  'No items',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppTheme.mutedText,
-                        fontStyle: FontStyle.italic,
-                      ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ── Order items list ──────────────────────────────────────────────────────────
-
-class _OrderItemsList extends StatelessWidget {
-  const _OrderItemsList({required this.items});
-  final List<OrderItem> items;
-
-  @override
-  Widget build(BuildContext context) {
-    // Calculate total item count
-    final totalItemCount = items.fold<int>(
-      0,
-      (sum, item) => sum + item.quantity,
-    );
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Item count header
-        Row(
-          children: [
-            const Icon(
-              Icons.restaurant_menu,
-              size: 16,
-              color: AppTheme.mutedText,
-            ),
-            const SizedBox(width: AppTheme.spacing4),
-            Text(
-              '$totalItemCount ${totalItemCount == 1 ? 'item' : 'items'}',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppTheme.mutedText,
-                    fontWeight: FontWeight.w600,
-                  ),
-            ),
-          ],
-        ),
-        const SizedBox(height: AppTheme.spacing8),
-        // List of items (show first 3, then "and X more")
-        ...items.take(3).map(
-              (item) => Padding(
-                padding: const EdgeInsets.only(bottom: AppTheme.spacing4),
-                child: Row(
-                  children: [
-                    Text(
-                      '${item.quantity}×',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: AppTheme.mutedText,
-                            fontWeight: FontWeight.w600,
-                          ),
-                    ),
-                    const SizedBox(width: AppTheme.spacing8),
-                    Expanded(
-                      child: Text(
-                        item.itemName,
-                        style: Theme.of(context).textTheme.bodySmall,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    Text(
-                      '₹${item.itemTotal.toStringAsFixed(2)}',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: AppTheme.mutedText,
-                          ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-        // Show "and X more" if there are more than 3 items
-        if (items.length > 3)
-          Padding(
-            padding: const EdgeInsets.only(top: AppTheme.spacing4),
-            child: Text(
-              'and ${items.length - 3} more ${items.length - 3 == 1 ? 'item' : 'items'}',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppTheme.mutedText,
-                    fontStyle: FontStyle.italic,
-                  ),
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-// ── Type badge (Req 9.1) ──────────────────────────────────────────────────────
-
-class _TypeBadge extends StatelessWidget {
-  const _TypeBadge({required this.type});
-  final OrderType type;
-
-  static const _labels = {
-    OrderType.dineIn: 'Dine-in',
-    OrderType.takeaway: 'Takeaway',
-    OrderType.delivery: 'Delivery',
-  };
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: AppTheme.surfaceVariant,
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: AppTheme.border),
-      ),
-      child: Text(
-        _labels[type] ?? type.jsonValue,
-        style: const TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w500,
-          color: AppTheme.mutedText,
-        ),
-      ),
-    );
-  }
-}
-
-// ── Status badge (Req 9.1) ────────────────────────────────────────────────────
-
-class _StatusBadgeWidget extends StatelessWidget {
-  const _StatusBadgeWidget({required this.status});
-  final OrderStatus status;
-
-  static const _labels = {
-    OrderStatus.pending: 'Pending',
-    OrderStatus.confirmed: 'Confirmed',
-    OrderStatus.preparing: 'Preparing',
-    OrderStatus.ready: 'Ready',
-    OrderStatus.served: 'Served',
-    OrderStatus.completed: 'Completed',
-  };
-
-  static const _colors = {
-    OrderStatus.pending: AppColors.orderPending,
-    OrderStatus.confirmed: AppColors.orderConfirmed,
-    OrderStatus.preparing: AppColors.orderPreparing,
-    OrderStatus.ready: AppColors.orderReady,
-    OrderStatus.served: AppColors.orderServed,
-    OrderStatus.completed: AppColors.orderCompleted,
-  };
-
-  @override
-  Widget build(BuildContext context) {
-    final color = _colors[status] ?? AppTheme.mutedText;
-    final label = _labels[status] ?? status.jsonValue;
-    return StatusBadge(label: label, color: color);
-  }
-}
-
-// ── Empty state ───────────────────────────────────────────────────────────────
-
-class _EmptyOrders extends StatelessWidget {
-  const _EmptyOrders();
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(AppTheme.spacing24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.inbox_outlined,
-                size: 64, color: AppTheme.mutedText),
-            const SizedBox(height: AppTheme.spacing16),
-            Text(
-              'No orders found',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: AppTheme.mutedText,
-                  ),
-            ),
-            const SizedBox(height: AppTheme.spacing8),
-            Text(
-              'Orders will appear here once placed',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppTheme.mutedText,
-                  ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

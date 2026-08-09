@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:models/models.dart';
 import 'package:staff_portal/orders/order_bloc.dart';
+import 'package:staff_portal/orders/order_design.dart';
 import 'package:staff_portal/orders/order_repository.dart';
 
 /// Order Detail screen — shows all items, status badge, and transition buttons.
@@ -75,16 +76,26 @@ class _OrderDetailViewState extends State<_OrderDetailView> {
         // ── Loading state ────────────────────────────────────────────────────
         if (state is OrderLoading && _lastOrder == null) {
           return Scaffold(
-            backgroundColor: AppTheme.surface,
-            appBar: AppBar(title: const Text('Order Detail')),
-            body: ListView(
-              padding: const EdgeInsets.all(AppTheme.spacing16),
-              children: const [
-                LoadingSkeletonCard(height: 120),
-                SizedBox(height: AppTheme.spacing8),
-                LoadingSkeletonCard(height: 200),
-                SizedBox(height: AppTheme.spacing8),
-                LoadingSkeletonCard(height: 88),
+            backgroundColor: orderBg,
+            body: Column(
+              children: [
+                _OrderDetailHeader(
+                  orderId: widget.orderId,
+                  isUpdating: true,
+                  onRefresh: null,
+                ),
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                    children: const [
+                      LoadingSkeletonCard(height: 120),
+                      SizedBox(height: 12),
+                      LoadingSkeletonCard(height: 200),
+                      SizedBox(height: 12),
+                      LoadingSkeletonCard(height: 88),
+                    ],
+                  ),
+                ),
               ],
             ),
           );
@@ -93,13 +104,25 @@ class _OrderDetailViewState extends State<_OrderDetailView> {
         // ── Error state (no cached order) ────────────────────────────────────
         if (state is OrderError && _lastOrder == null) {
           return Scaffold(
-            backgroundColor: AppTheme.surface,
-            appBar: AppBar(title: const Text('Order Detail')),
-            body: ErrorStateWidget(
-              message: state.message,
-              onRetry: () => context
-                  .read<OrderBloc>()
-                  .add(OrderDetailRequested(widget.orderId)),
+            backgroundColor: orderBg,
+            body: Column(
+              children: [
+                _OrderDetailHeader(
+                  orderId: widget.orderId,
+                  isUpdating: false,
+                  onRefresh: () => context
+                      .read<OrderBloc>()
+                      .add(OrderDetailRequested(widget.orderId)),
+                ),
+                Expanded(
+                  child: ErrorStateWidget(
+                    message: state.message,
+                    onRetry: () => context
+                        .read<OrderBloc>()
+                        .add(OrderDetailRequested(widget.orderId)),
+                  ),
+                ),
+              ],
             ),
           );
         }
@@ -109,63 +132,151 @@ class _OrderDetailViewState extends State<_OrderDetailView> {
             (state is OrderDetailLoaded) ? state.order : _lastOrder;
 
         if (order == null) {
-          // Fallback — nothing to show yet
           return Scaffold(
-            backgroundColor: AppTheme.surface,
-            appBar: AppBar(title: const Text('Order Detail')),
-            body: const Center(child: CircularProgressIndicator()),
+            backgroundColor: orderBg,
+            body: const Center(
+              child: CircularProgressIndicator(color: orderAccent),
+            ),
           );
         }
 
         // ── Full detail view ─────────────────────────────────────────────────
         return Scaffold(
-          backgroundColor: AppTheme.surface,
-          appBar: AppBar(
-            title: Text('Order #${order.id.substring(0, 8).toUpperCase()}'),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.refresh),
-                tooltip: 'Refresh',
-                onPressed: _isUpdating
+          backgroundColor: orderBg,
+          body: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _OrderDetailHeader(
+                orderId: order.id,
+                status: order.status,
+                isUpdating: _isUpdating,
+                onRefresh: _isUpdating
                     ? null
                     : () => context
                         .read<OrderBloc>()
                         .add(OrderDetailRequested(widget.orderId)),
               ),
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _MetadataCard(order: order),
+                      const SizedBox(height: 16),
+                      _ItemsCard(order: order),
+                      const SizedBox(height: 16),
+                      _StatusTransitionSection(
+                        order: order,
+                        isUpdating: _isUpdating,
+                        onStatusRequested: (newStatus) {
+                          setState(() => _isUpdating = true);
+                          context.read<OrderBloc>().add(
+                                OrderStatusUpdateRequested(
+                                  id: order.id,
+                                  status: newStatus,
+                                ),
+                              );
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ],
           ),
-          body: SingleChildScrollView(
-            padding: const EdgeInsets.all(AppTheme.spacing16),
+        );
+      },
+    );
+  }
+}
+
+// ── Page header ───────────────────────────────────────────────────────────────
+
+class _OrderDetailHeader extends StatelessWidget {
+  const _OrderDetailHeader({
+    required this.orderId,
+    this.status,
+    required this.isUpdating,
+    required this.onRefresh,
+  });
+
+  final String orderId;
+  final OrderStatus? status;
+  final bool isUpdating;
+  final VoidCallback? onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    final shortId = orderId.length > 8
+        ? orderId.substring(0, 8).toUpperCase()
+        : orderId.toUpperCase();
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          IconButton(
+            tooltip: 'Back to orders',
+            onPressed: () => Navigator.of(context).maybePop(),
+            icon: const Icon(Icons.arrow_back, color: orderTitle),
+            style: IconButton.styleFrom(
+              backgroundColor: orderCard,
+              side: const BorderSide(color: orderBorder),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // ── Metadata card ─────────────────────────────────────────
-                _MetadataCard(order: order),
-                const SizedBox(height: AppTheme.spacing16),
-
-                // ── Items card ────────────────────────────────────────────
-                _ItemsCard(order: order),
-                const SizedBox(height: AppTheme.spacing16),
-
-                // ── Status-transition buttons ─────────────────────────────
-                _StatusTransitionSection(
-                  order: order,
-                  isUpdating: _isUpdating,
-                  onStatusRequested: (newStatus) {
-                    setState(() => _isUpdating = true);
-                    context.read<OrderBloc>().add(
-                          OrderStatusUpdateRequested(
-                            id: order.id,
-                            status: newStatus,
-                          ),
-                        );
-                  },
+                Text(
+                  'Order #$shortId',
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    color: orderTitle,
+                    letterSpacing: -0.3,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    const Text(
+                      'Order details and status',
+                      style: TextStyle(fontSize: 12.5, color: orderMuted),
+                    ),
+                    if (status != null) ...[
+                      const SizedBox(width: 10),
+                      OrderStatusBadge(status: status!),
+                    ],
+                  ],
                 ),
               ],
             ),
           ),
-        );
-      },
+          if (onRefresh != null)
+            OutlinedButton.icon(
+              onPressed: isUpdating ? null : onRefresh,
+              icon: isUpdating
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: orderAccent,
+                      ),
+                    )
+                  : const Icon(Icons.refresh, size: 16),
+              label: const Text('Refresh'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: orderTitle,
+                side: const BorderSide(color: orderBorder),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
@@ -179,45 +290,32 @@ class _MetadataCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 0,
-      color: AppTheme.cardSurface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppTheme.radiusCard),
-        side: const BorderSide(color: AppTheme.border),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(AppTheme.spacing16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Order Info',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: AppTheme.spacing12),
-            Row(
-              children: [
-                _TypeBadge(type: order.orderType),
-                const SizedBox(width: AppTheme.spacing8),
-                _StatusBadgeWidget(status: order.status),
-              ],
-            ),
-            const SizedBox(height: AppTheme.spacing12),
-            _InfoRow(
-              label: 'Created',
-              value: _formatDateTime(order.createdAt),
-            ),
-            if (order.tableId != null && order.orderType == OrderType.dineIn)
-              Padding(
-                padding: const EdgeInsets.only(top: AppTheme.spacing8),
-                child: _InfoRow(
-                  label: 'Table',
-                  value: order.tableId!,
-                ),
+    return OrderSectionCard(
+      title: 'Order info',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              OrderTypeBadge(type: order.orderType),
+              const SizedBox(width: 8),
+              OrderStatusBadge(status: order.status),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _InfoRow(
+            label: 'Created',
+            value: _formatDateTime(order.createdAt),
+          ),
+          if (order.tableId != null && order.orderType == OrderType.dineIn)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: _InfoRow(
+                label: 'Table',
+                value: order.tableId!,
               ),
-          ],
-        ),
+            ),
+        ],
       ),
     );
   }
@@ -262,16 +360,17 @@ class _InfoRow extends StatelessWidget {
           width: 80,
           child: Text(
             label,
-            style: Theme.of(context)
-                .textTheme
-                .bodySmall
-                ?.copyWith(color: AppTheme.mutedText),
+            style: const TextStyle(fontSize: 12, color: orderMuted),
           ),
         ),
         Expanded(
           child: Text(
             value,
-            style: Theme.of(context).textTheme.bodyMedium,
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: orderTitle,
+            ),
           ),
         ),
       ],
@@ -288,48 +387,38 @@ class _ItemsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 0,
-      color: AppTheme.cardSurface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppTheme.radiusCard),
-        side: const BorderSide(color: AppTheme.border),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(AppTheme.spacing16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Items (${order.items.length})',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: AppTheme.spacing12),
-            const Divider(height: 1),
-            ...order.items.map((item) => _OrderItemRow(item: item)),
-            const Divider(height: 1),
-            const SizedBox(height: AppTheme.spacing12),
-            // Total row
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Total',
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
+    return OrderSectionCard(
+      title: 'Items (${order.items.length})',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Divider(height: 1, color: orderDivider),
+          const SizedBox(height: 8),
+          ...order.items.map((item) => _OrderItemRow(item: item)),
+          const Divider(height: 1, color: orderDivider),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Total',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: orderTitle,
                 ),
-                Text(
-                  '₹${order.subtotal.toStringAsFixed(2)}',
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        color: AppTheme.primary,
-                        fontWeight: FontWeight.w700,
-                      ),
+              ),
+              Text(
+                '₹${order.subtotal.toStringAsFixed(2)}',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: orderAccent,
                 ),
-              ],
-            ),
-          ],
-        ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -343,80 +432,69 @@ class _OrderItemRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppTheme.spacing12),
-      child: Column(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Name + per-item total
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Quantity badge
-              Container(
-                width: 28,
-                height: 28,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: AppTheme.primaryContainer,
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  '${item.quantity}',
+          Container(
+            width: 28,
+            height: 28,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: orderAccent.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              '${item.quantity}',
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                color: orderAccent,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.itemName,
                   style: const TextStyle(
-                    fontSize: 12,
+                    fontSize: 14,
                     fontWeight: FontWeight.w700,
-                    color: AppTheme.onPrimaryContainer,
+                    color: orderTitle,
                   ),
                 ),
-              ),
-              const SizedBox(width: AppTheme.spacing8),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      item.itemName,
-                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
-                    ),
-                    const SizedBox(height: AppTheme.spacing4),
-                    Text(
-                      '₹${item.unitPrice.toStringAsFixed(2)} each',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                    // Variant
-                    if (item.variantId != null) ...[
-                      const SizedBox(height: AppTheme.spacing4),
-                      Text(
-                        'Variant: ${item.variantId}',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: AppTheme.mutedText,
-                            ),
-                      ),
-                    ],
-                    // Modifiers
-                    if (item.modifierIds.isNotEmpty) ...[
-                      const SizedBox(height: AppTheme.spacing4),
-                      Text(
-                        'Modifiers: ${item.modifierIds.join(', ')}',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: AppTheme.mutedText,
-                            ),
-                      ),
-                    ],
-                  ],
+                const SizedBox(height: 2),
+                Text(
+                  '₹${item.unitPrice.toStringAsFixed(2)} each',
+                  style: const TextStyle(fontSize: 12, color: orderMuted),
                 ),
-              ),
-              const SizedBox(width: AppTheme.spacing8),
-              // Per-item total
-              Text(
-                '₹${item.itemTotal.toStringAsFixed(2)}',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-              ),
-            ],
+                if (item.variantId != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    'Variant: ${item.variantId}',
+                    style: const TextStyle(fontSize: 11, color: orderMuted),
+                  ),
+                ],
+                if (item.modifierIds.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    'Modifiers: ${item.modifierIds.join(', ')}',
+                    style: const TextStyle(fontSize: 11, color: orderMuted),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          Text(
+            '₹${item.itemTotal.toStringAsFixed(2)}',
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: orderTitle,
+            ),
           ),
         ],
       ),
@@ -517,97 +595,66 @@ class _StatusTransitionSection extends StatelessWidget {
 
     // Terminal state — nothing more to do
     if (nextStatuses.isEmpty && !canCancel) {
-      return Card(
-        elevation: 0,
-        color: AppTheme.cardSurface,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppTheme.radiusCard),
-          side: const BorderSide(color: AppTheme.border),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(AppTheme.spacing16),
-          child: Row(
-            children: [
-              Icon(
+      return OrderSectionCard(
+        child: Row(
+          children: [
+            Icon(
+              order.status == OrderStatus.cancelled
+                  ? Icons.cancel_outlined
+                  : order.status == OrderStatus.served
+                      ? Icons.receipt_long_outlined
+                      : order.status == OrderStatus.confirmed
+                          ? Icons.kitchen_outlined
+                          : Icons.check_circle,
+              color: order.status == OrderStatus.cancelled
+                  ? AppTheme.error
+                  : order.status == OrderStatus.served
+                      ? orderAccent
+                      : order.status == OrderStatus.confirmed
+                          ? AppTheme.warning
+                          : AppTheme.success,
+              size: 20,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
                 order.status == OrderStatus.cancelled
-                    ? Icons.cancel_outlined
+                    ? 'Order cancelled.'
                     : order.status == OrderStatus.served
-                        ? Icons.receipt_long_outlined
+                        ? 'Order served — go to Billing to record payment and complete the order.'
                         : order.status == OrderStatus.confirmed
-                            ? Icons.kitchen_outlined
-                            : Icons.check_circle,
-                color: order.status == OrderStatus.cancelled
-                    ? AppTheme.error
-                    : order.status == OrderStatus.served
-                        ? AppTheme.primary
-                        : order.status == OrderStatus.confirmed
-                            ? AppTheme.warning
-                            : AppTheme.success,
-                size: 20,
+                            ? 'Order confirmed — kitchen will pick this up from the KDS.'
+                            : 'Order completed.',
+                style: const TextStyle(fontSize: 13, color: orderMuted),
               ),
-              const SizedBox(width: AppTheme.spacing8),
-              Expanded(
-                child: Text(
-                  order.status == OrderStatus.cancelled
-                      ? 'Order cancelled.'
-                      : order.status == OrderStatus.served
-                          ? 'Order served — go to Billing to record payment and complete the order.'
-                          : order.status == OrderStatus.confirmed
-                              ? 'Order confirmed — kitchen will pick this up from the KDS.'
-                              : 'Order completed.',
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodyMedium
-                      ?.copyWith(color: AppTheme.mutedText),
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       );
     }
 
-    return Card(
-      elevation: 0,
-      color: AppTheme.cardSurface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppTheme.radiusCard),
-        side: const BorderSide(color: AppTheme.border),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(AppTheme.spacing16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Update Status',
-                style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: AppTheme.spacing12),
-            Wrap(
-              spacing: AppTheme.spacing8,
-              runSpacing: AppTheme.spacing8,
-              children: [
-                // Forward-progress buttons
-                ...nextStatuses.map((nextStatus) => _StatusButton(
-                      label:
-                          'Mark as ${_statusLabels[nextStatus] ?? nextStatus.jsonValue}',
-                      isLoading: isUpdating,
-                      onPressed: isUpdating
-                          ? null
-                          : () => onStatusRequested(nextStatus),
-                    )),
-                // Cancel button
-                if (canCancel)
-                  _StatusButton(
-                    label: 'Cancel Order',
-                    isLoading: isUpdating,
-                    isDestructive: true,
-                    onPressed:
-                        isUpdating ? null : () => _showCancelDialog(context),
-                  ),
-              ],
+    return OrderSectionCard(
+      title: 'Update status',
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          ...nextStatuses.map((nextStatus) => _StatusButton(
+                label:
+                    'Mark as ${_statusLabels[nextStatus] ?? nextStatus.jsonValue}',
+                isLoading: isUpdating,
+                onPressed: isUpdating
+                    ? null
+                    : () => onStatusRequested(nextStatus),
+              )),
+          if (canCancel)
+            _StatusButton(
+              label: 'Cancel order',
+              isLoading: isUpdating,
+              isDestructive: true,
+              onPressed: isUpdating ? null : () => _showCancelDialog(context),
             ),
-          ],
-        ),
+        ],
       ),
     );
   }
@@ -629,92 +676,23 @@ class _StatusButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 48,
+      height: 44,
       child: FilledButton(
         onPressed: onPressed,
         style: isDestructive
             ? FilledButton.styleFrom(backgroundColor: AppTheme.error)
-            : null,
+            : FilledButton.styleFrom(backgroundColor: orderAccent),
         child: isLoading
             ? const SizedBox(
                 width: 20,
                 height: 20,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
-                  color: AppTheme.onPrimary,
+                  color: Colors.white,
                 ),
               )
             : Text(label),
       ),
     );
-  }
-}
-
-// ── Type badge ────────────────────────────────────────────────────────────────
-
-class _TypeBadge extends StatelessWidget {
-  const _TypeBadge({required this.type});
-
-  final OrderType type;
-
-  static const _labels = <OrderType, String>{
-    OrderType.dineIn: 'Dine-in',
-    OrderType.takeaway: 'Takeaway',
-    OrderType.delivery: 'Delivery',
-  };
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: AppTheme.surfaceVariant,
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: AppTheme.border),
-      ),
-      child: Text(
-        _labels[type] ?? type.jsonValue,
-        style: const TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w500,
-          color: AppTheme.mutedText,
-        ),
-      ),
-    );
-  }
-}
-
-// ── Status badge ──────────────────────────────────────────────────────────────
-
-class _StatusBadgeWidget extends StatelessWidget {
-  const _StatusBadgeWidget({required this.status});
-
-  final OrderStatus status;
-
-  static const _labels = <OrderStatus, String>{
-    OrderStatus.pending: 'Pending',
-    OrderStatus.confirmed: 'Confirmed',
-    OrderStatus.preparing: 'Preparing',
-    OrderStatus.ready: 'Ready',
-    OrderStatus.served: 'Served',
-    OrderStatus.completed: 'Completed',
-    OrderStatus.cancelled: 'Cancelled',
-  };
-
-  static const _colors = <OrderStatus, Color>{
-    OrderStatus.pending: AppColors.orderPending,
-    OrderStatus.confirmed: AppColors.orderConfirmed,
-    OrderStatus.preparing: AppColors.orderPreparing,
-    OrderStatus.ready: AppColors.orderReady,
-    OrderStatus.served: AppColors.orderServed,
-    OrderStatus.completed: AppColors.orderCompleted,
-    OrderStatus.cancelled: AppTheme.error,
-  };
-
-  @override
-  Widget build(BuildContext context) {
-    final color = _colors[status] ?? AppTheme.mutedText;
-    final label = _labels[status] ?? status.jsonValue;
-    return StatusBadge(label: label, color: color);
   }
 }

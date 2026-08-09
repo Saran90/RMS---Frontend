@@ -1,4 +1,4 @@
-import 'onboarding_repository.dart';
+import '../payments/razorpay_checkout_params.dart';
 
 /// Razorpay Checkout `config.display` — puts UPI first and lists common methods.
 Map<String, dynamic> razorpayCheckoutDisplayConfig() => {
@@ -37,17 +37,17 @@ Map<String, dynamic> razorpayCheckoutDisplayConfig() => {
 
 /// Base Checkout options shared by web and mobile handlers.
 Map<String, dynamic> buildRazorpayBaseOptions(
-  InitiatePaymentResponse payment, {
+  RazorpayCheckoutParams checkout, {
   String? email,
   String? contact,
 }) {
   return {
-    'key': payment.keyId,
-    'amount': payment.amount,
-    'currency': payment.currency,
-    'order_id': payment.razorpayOrderId,
-    'name': 'TableFlow',
-    'description': 'Subscription Payment',
+    'key': checkout.keyId,
+    'amount': checkout.amountPaise,
+    'currency': checkout.currency,
+    'order_id': checkout.razorpayOrderId,
+    'name': checkout.name,
+    'description': checkout.description,
     'theme': {'color': '#BF4010'},
     'config': razorpayCheckoutDisplayConfig(),
     if (email != null || contact != null)

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:staff_portal/menu/menu_category.dart';
 import 'package:staff_portal/menu/menu_category_bloc.dart';
+import 'package:staff_portal/menu/menu_design.dart';
 
 /// Menu Categories screen — standalone entry point.
 class MenuCategoriesScreen extends StatelessWidget {
@@ -17,14 +18,49 @@ class MenuCategoriesScreen extends StatelessWidget {
       listener: _handleCategoryError,
       child: BlocBuilder<MenuCategoryBloc, MenuCategoryState>(
         builder: (context, state) => Scaffold(
-          backgroundColor: AppTheme.surface,
-          appBar: AppBar(title: const Text('Menu Categories')),
-          floatingActionButton: FloatingActionButton.extended(
-            onPressed: () => _showCategorySheet(context, category: null),
-            icon: const Icon(Icons.add),
-            label: const Text('Add Category'),
+          backgroundColor: menuBg,
+          body: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
+                child: Row(
+                  children: [
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Categories',
+                            style: TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w800,
+                              color: menuTitle,
+                            ),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            'Organise your menu into sections',
+                            style: TextStyle(fontSize: 12.5, color: menuMuted),
+                          ),
+                        ],
+                      ),
+                    ),
+                    FilledButton.icon(
+                      onPressed: () => _showCategorySheet(context, category: null),
+                      icon: const Icon(Icons.add, size: 18),
+                      label: const Text('Add category'),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: menuAccent,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(child: _categoryBody(context, state)),
+            ],
           ),
-          body: _categoryBody(context, state),
         ),
       ),
     );
@@ -79,10 +115,7 @@ void _showCategorySheet(BuildContext context,
   showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
-    backgroundColor: AppTheme.cardSurface,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-    ),
+    backgroundColor: Colors.transparent,
     builder: (_) => BlocProvider.value(
       value: context.read<MenuCategoryBloc>(),
       child: _CategorySheet(category: category),
@@ -96,13 +129,13 @@ class _LoadingBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.all(AppTheme.spacing16),
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
       child: GridView.builder(
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 3,
-          crossAxisSpacing: AppTheme.spacing8,
-          mainAxisSpacing: AppTheme.spacing8,
-          childAspectRatio: 1.8,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          childAspectRatio: 3.4,
         ),
         itemCount: 9,
         itemBuilder: (_, __) =>
@@ -123,43 +156,26 @@ class _LoadedBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (categories.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.category_outlined,
-                size: 64, color: AppTheme.mutedText),
-            const SizedBox(height: AppTheme.spacing12),
-            Text('No categories yet',
-                style: Theme.of(context)
-                    .textTheme
-                    .bodyLarge
-                    ?.copyWith(color: AppTheme.mutedText)),
-            const SizedBox(height: AppTheme.spacing8),
-            Text('Add a category to organise your menu',
-                style: Theme.of(context)
-                    .textTheme
-                    .bodySmall
-                    ?.copyWith(color: AppTheme.mutedText)),
-          ],
-        ),
+      return const MenuEmptyState(
+        icon: Icons.category_outlined,
+        title: 'No categories yet',
+        subtitle: 'Add a category to organise your menu items',
       );
     }
 
-    // Deduplicate by name (bulk-upload creates duplicates)
     final seen = <String>{};
     final unique =
         categories.where((c) => seen.add(c.name.toLowerCase())).toList();
 
     return LayoutBuilder(builder: (context, constraints) {
-      final cols = constraints.maxWidth >= 720 ? 4 : 3;
+      final cols = constraints.maxWidth >= 900 ? 4 : 3;
       return GridView.builder(
-        padding: const EdgeInsets.all(AppTheme.spacing16),
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: cols,
-          crossAxisSpacing: AppTheme.spacing8,
-          mainAxisSpacing: AppTheme.spacing8,
-          childAspectRatio: 1.8,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          childAspectRatio: 3.4,
         ),
         itemCount: unique.length,
         itemBuilder: (ctx, i) => _CategoryCard(
@@ -181,102 +197,13 @@ class _CategoryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 0,
-      color: AppTheme.cardSurface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppTheme.radiusCard),
-        side: const BorderSide(color: AppTheme.border),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppTheme.spacing12,
-          vertical: AppTheme.spacing8,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            // Top row: order badge + action icons
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: AppTheme.spacing8, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: AppTheme.primaryContainer,
-                    borderRadius: BorderRadius.circular(AppTheme.radiusBadge),
-                  ),
-                  child: Text(
-                    '#${category.displayOrder}',
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: AppTheme.primary,
-                          fontWeight: FontWeight.w700,
-                        ),
-                  ),
-                ),
-                const Spacer(),
-                SizedBox(
-                  width: 28,
-                  height: 28,
-                  child: IconButton(
-                    padding: EdgeInsets.zero,
-                    icon: const Icon(Icons.edit_outlined, size: 14),
-                    color: AppTheme.primary,
-                    tooltip: 'Edit',
-                    onPressed: isDeleting ? null : () => _showEdit(context),
-                  ),
-                ),
-                SizedBox(
-                  width: 28,
-                  height: 28,
-                  child: IconButton(
-                    padding: EdgeInsets.zero,
-                    icon: isDeleting
-                        ? const SizedBox(
-                            width: 12,
-                            height: 12,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.delete_outline, size: 14),
-                    color: isDeleting ? AppTheme.mutedText : AppTheme.error,
-                    tooltip: 'Delete',
-                    onPressed:
-                        isDeleting ? null : () => _confirmDelete(context),
-                  ),
-                ),
-              ],
-            ),
-            // Name + description
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  category.name,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                if (category.description != null &&
-                    category.description!.isNotEmpty) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    category.description!,
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodySmall
-                        ?.copyWith(color: AppTheme.mutedText),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ],
-            ),
-          ],
-        ),
-      ),
+    return MenuCategoryTile(
+      name: category.name,
+      displayOrder: category.displayOrder,
+      description: category.description,
+      isDeleting: isDeleting,
+      onEdit: () => _showEdit(context),
+      onDelete: () => _confirmDelete(context),
     );
   }
 
@@ -284,10 +211,7 @@ class _CategoryCard extends StatelessWidget {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: AppTheme.cardSurface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
+      backgroundColor: Colors.transparent,
       builder: (_) => BlocProvider.value(
         value: context.read<MenuCategoryBloc>(),
         child: _CategorySheet(category: category),
@@ -298,7 +222,7 @@ class _CategoryCard extends StatelessWidget {
   void _confirmDelete(BuildContext context) {
     showConfirmationDialog(
       context,
-      title: 'Delete Category',
+      title: 'Delete category',
       message: 'Delete "${category.name}"? This cannot be undone.',
       confirmLabel: 'Delete',
       cancelLabel: 'Cancel',
@@ -335,7 +259,8 @@ class _CategorySheetState extends State<_CategorySheet> {
   void initState() {
     super.initState();
     _nameCtrl = TextEditingController(text: widget.category?.name ?? '');
-    _descCtrl = TextEditingController(text: widget.category?.description ?? '');
+    _descCtrl =
+        TextEditingController(text: widget.category?.description ?? '');
   }
 
   @override
@@ -379,85 +304,48 @@ class _CategorySheetState extends State<_CategorySheet> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(AppTheme.spacing24),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: AppTheme.border,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: AppTheme.spacing16),
-              Text(_isEdit ? 'Edit Category' : 'Add Category',
-                  style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: AppTheme.spacing16),
-              if (_errorMessage != null) ...[
-                Container(
-                  padding: const EdgeInsets.all(AppTheme.spacing12),
-                  decoration: BoxDecoration(
-                    color: AppTheme.errorContainer,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppTheme.error),
-                  ),
-                  child: Text(_errorMessage!,
-                      style:
-                          const TextStyle(color: AppTheme.error, fontSize: 13)),
-                ),
-                const SizedBox(height: AppTheme.spacing12),
-              ],
-              TextFormField(
-                controller: _nameCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Category Name *',
-                  hintText: '1–100 characters',
-                ),
-                validator: (v) {
-                  if (v == null || v.trim().isEmpty) {
-                    return 'Category name is required';
-                  }
-                  if (v.trim().length > 100) {
-                    return 'Name must be 100 characters or fewer';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: AppTheme.spacing16),
-              TextFormField(
-                controller: _descCtrl,
-                maxLines: 2,
-                decoration:
-                    const InputDecoration(labelText: 'Description (optional)'),
-              ),
-              const SizedBox(height: AppTheme.spacing24),
-              SizedBox(
-                height: 48,
-                child: FilledButton(
-                  onPressed: _submitting ? null : _submit,
-                  child: _submitting
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                              strokeWidth: 2, color: AppTheme.onPrimary),
-                        )
-                      : Text(_isEdit ? 'Save Changes' : 'Add Category'),
-                ),
-              ),
-              const SizedBox(height: AppTheme.spacing8),
+    return MenuSheetScaffold(
+      title: _isEdit ? 'Edit category' : 'Add category',
+      child: Form(
+        key: _formKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (_errorMessage != null) ...[
+              MenuFormError(message: _errorMessage!),
+              const SizedBox(height: 12),
             ],
-          ),
+            TextFormField(
+              controller: _nameCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Category name *',
+                hintText: '1–100 characters',
+              ),
+              validator: (v) {
+                if (v == null || v.trim().isEmpty) {
+                  return 'Category name is required';
+                }
+                if (v.trim().length > 100) {
+                  return 'Name must be 100 characters or fewer';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _descCtrl,
+              maxLines: 2,
+              decoration:
+                  const InputDecoration(labelText: 'Description (optional)'),
+            ),
+            const SizedBox(height: 24),
+            MenuPrimaryButton(
+              label: _isEdit ? 'Save changes' : 'Add category',
+              loading: _submitting,
+              onPressed: _submit,
+            ),
+            const SizedBox(height: 8),
+          ],
         ),
       ),
     );

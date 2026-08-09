@@ -1,7 +1,7 @@
 import 'package:flutter/services.dart';
 import 'package:razorpay_flutter/razorpay_flutter.dart';
 
-import 'onboarding_repository.dart';
+import '../payments/razorpay_checkout_params.dart';
 import 'razorpay_checkout_options.dart';
 
 /// Native Razorpay checkout via [razorpay_flutter] (Android / iOS).
@@ -37,7 +37,7 @@ class RazorpayPaymentHandler {
   }
 
   void open(
-    InitiatePaymentResponse payment, {
+    RazorpayCheckoutParams checkoutParams, {
     String? email,
     String? contact,
   }) {
@@ -48,7 +48,7 @@ class RazorpayPaymentHandler {
     }
 
     final options = buildRazorpayBaseOptions(
-      payment,
+      checkoutParams,
       email: email,
       contact: contact,
     );

@@ -30,8 +30,10 @@ final class SubscriptionGuardPaymentRequired extends SubscriptionGuardState {
 
 // ── Cubit ─────────────────────────────────────────────────────────────────────
 
-/// Checks whether the **selected** restaurant has a `pending_payment`
-/// subscription and drives router redirects on app reload.
+/// Checks whether the **currently selected** restaurant (tenant JWT) has a
+/// `pending_payment` subscription and drives router redirects on app reload.
+///
+/// Does not scan other restaurants the user may own.
 class SubscriptionGuardCubit extends Cubit<SubscriptionGuardState> {
   SubscriptionGuardCubit({
     required OnboardingRepository onboardingRepository,
@@ -43,21 +45,35 @@ class SubscriptionGuardCubit extends Cubit<SubscriptionGuardState> {
   final OnboardingRepository _onboardingRepo;
   final SecureTokenRepository _tokenRepo;
 
+  Future<void>? _inFlightCheck;
+
   /// Clears the payment-required flag (after successful payment).
   void markPaymentComplete() {
     emit(const SubscriptionGuardClear());
   }
 
   void reset() {
+    _inFlightCheck = null;
     emit(const SubscriptionGuardInitial());
   }
 
   /// Checks subscription status for the restaurant in the tenant JWT only.
   Future<void> checkPendingPayment() async {
+    _inFlightCheck ??= _runCheck().whenComplete(() => _inFlightCheck = null);
+    await _inFlightCheck;
+  }
+
+  Future<void> _runCheck() async {
     emit(const SubscriptionGuardLoading());
     try {
-      final restaurantId = await _selectedRestaurantPendingPaymentId();
-      if (restaurantId != null) {
+      final restaurantId = await _selectedRestaurantId();
+      if (restaurantId == null) {
+        emit(const SubscriptionGuardClear());
+        return;
+      }
+
+      final sub = await _onboardingRepo.getSubscriptionForRestaurant(restaurantId);
+      if (sub?.status == 'pending_payment') {
         emit(SubscriptionGuardPaymentRequired(restaurantId: restaurantId));
       } else {
         emit(const SubscriptionGuardClear());
@@ -68,7 +84,9 @@ class SubscriptionGuardCubit extends Cubit<SubscriptionGuardState> {
     }
   }
 
-  Future<String?> _selectedRestaurantPendingPaymentId() async {
+  /// Returns the selected restaurant id from a valid tenant JWT, or null when
+  /// no restaurant is selected yet (e.g. restaurant selector screen).
+  Future<String?> _selectedRestaurantId() async {
     if (!_tokenRepo.isTenantTokenValid()) return null;
 
     final tenantToken = await _tokenRepo.getTenantToken();
@@ -77,8 +95,6 @@ class SubscriptionGuardCubit extends Cubit<SubscriptionGuardState> {
     final restaurantId = SecureTokenRepository.extractRestaurantId(tenantToken);
     if (restaurantId == null || restaurantId.isEmpty) return null;
 
-    final sub = await _onboardingRepo.getSubscriptionForRestaurant(restaurantId);
-    if (sub?.status == 'pending_payment') return restaurantId;
-    return null;
+    return restaurantId;
   }
 }

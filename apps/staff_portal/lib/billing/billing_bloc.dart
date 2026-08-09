@@ -15,11 +15,16 @@ final class BillGenerateRequested extends BillingEvent {
 }
 
 final class BillPaymentRequested extends BillingEvent {
-  const BillPaymentRequested(
-      {required this.billId, required this.mode, required this.amount});
+  const BillPaymentRequested({
+    required this.billId,
+    required this.mode,
+    required this.amount,
+    this.reference,
+  });
   final String billId;
   final String mode;
   final double amount;
+  final String? reference;
 }
 
 final class BillSplitRequested extends BillingEvent {
@@ -88,7 +93,6 @@ class BillingBloc extends Bloc<BillingEvent, BillingState> {
   BillingBloc({required BillingRepository repository})
       : _repo = repository,
         super(const BillingInitial()) {
-    print('BillingBloc: constructor called');
     on<BillGenerateRequested>(_onGenerate);
     on<BillPaymentRequested>(_onPayment);
     on<BillSplitRequested>(_onSplit);
@@ -96,7 +100,6 @@ class BillingBloc extends Bloc<BillingEvent, BillingState> {
     on<BillLoadRequested>(_onLoad);
     on<BillsListRequested>(_onListBills);
     on<BillNewRequested>((_, emit) => emit(const BillingInitial()));
-    print('BillingBloc: event handlers registered');
   }
   final BillingRepository _repo;
   Bill? _currentBill;
@@ -120,7 +123,11 @@ class BillingBloc extends Bloc<BillingEvent, BillingState> {
     emit(const BillingLoading());
     try {
       final b = await _repo.recordPayment(
-          billId: e.billId, mode: e.mode, amount: e.amount);
+        billId: e.billId,
+        mode: e.mode,
+        amount: e.amount,
+        reference: e.reference,
+      );
       _currentBill = b;
       emit(BillLoaded(b));
     } on ApiException catch (ex) {
@@ -171,25 +178,14 @@ class BillingBloc extends Bloc<BillingEvent, BillingState> {
 
   Future<void> _onListBills(
       BillsListRequested e, Emitter<BillingState> emit) async {
-    print('BillingBloc: _onListBills called');
     emit(const BillingLoading());
     try {
-      print('BillingBloc: calling repository.listBills()');
       final bills = await _repo.listBills();
-      print('BillingBloc: received ${bills.length} bills');
-
-      // Log bill details safely
-      for (final bill in bills) {
-        print(
-            'BillingBloc: bill id=${bill.id.substring(0, 8)}, status=${bill.status}');
-      }
-
-      print('BillingBloc: emitting BillsListLoaded with ${bills.length} bills');
       emit(BillsListLoaded(bills));
-    } catch (e, stackTrace) {
-      print('BillingBloc: Error - $e');
-      print('BillingBloc: Stack trace - $stackTrace');
-      emit(BillingInitial());
+    } on ApiException catch (ex) {
+      emit(BillingError(message: ex.message));
+    } catch (ex) {
+      emit(BillingError(message: ex.toString()));
     }
   }
 }

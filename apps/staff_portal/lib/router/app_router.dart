@@ -249,7 +249,10 @@ class AppRouter {
 
     // ── Authenticated routes (wrapped in AppShell nav) ────────────────────
     ShellRoute(
-      builder: (_, __, child) => AppShell(child: child),
+      builder: (context, state, child) => AppShell(
+        location: state.matchedLocation,
+        child: child,
+      ),
       routes: [
         GoRoute(
           path: AppRoutes.dashboard,

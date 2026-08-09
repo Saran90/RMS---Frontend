@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:models/models.dart';
 import 'package:staff_portal/menu/menu_category_bloc.dart';
+import 'package:staff_portal/menu/menu_design.dart';
 import 'package:staff_portal/menu/menu_item_bloc.dart';
 import 'package:staff_portal/menu/menu_item_form.dart';
 
@@ -21,26 +22,61 @@ class MenuItemsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.surface,
-      appBar: AppBar(
-        title: const Text('Menu Items'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Refresh',
-            onPressed: () => context
-                .read<MenuItemBloc>()
-                .add(const MenuItemsLoadRequested()),
+      backgroundColor: menuBg,
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
+            child: Row(
+              children: [
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Menu items',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                          color: menuTitle,
+                        ),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        'Search, filter, and manage availability',
+                        style: TextStyle(fontSize: 12.5, color: menuMuted),
+                      ),
+                    ],
+                  ),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () => context
+                      .read<MenuItemBloc>()
+                      .add(const MenuItemsLoadRequested()),
+                  icon: const Icon(Icons.refresh, size: 16),
+                  label: const Text('Refresh'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: menuTitle,
+                    side: const BorderSide(color: menuBorder),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                FilledButton.icon(
+                  onPressed: () => showMenuItemForm(context),
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text('Add item'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: menuAccent,
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+              ],
+            ),
           ),
+          const Expanded(child: MenuItemsBodyContent()),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        heroTag: 'add_item_fab',
-        onPressed: () => showMenuItemForm(context),
-        icon: const Icon(Icons.add),
-        label: const Text('Add Item'),
-      ),
-      body: const MenuItemsBodyContent(),
     );
   }
 }
@@ -186,25 +222,23 @@ class _MenuItemsBodyContentState extends State<MenuItemsBodyContent> {
 
               return Column(
                 children: [
-                  // ── Search bar ────────────────────────────────────
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      AppTheme.spacing16,
-                      AppTheme.spacing12,
-                      AppTheme.spacing16,
-                      AppTheme.spacing8,
-                    ),
+                    padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
                     child: TextField(
                       controller: _searchCtrl,
                       onChanged: _onSearchChanged,
                       decoration: InputDecoration(
                         hintText: 'Search items…',
-                        prefixIcon: const Icon(Icons.search,
-                            size: 20, color: AppTheme.mutedText),
+                        hintStyle: const TextStyle(color: menuMuted),
+                        prefixIcon: const Icon(
+                          Icons.search,
+                          size: 20,
+                          color: menuMuted,
+                        ),
                         suffixIcon: _query.isNotEmpty
                             ? IconButton(
                                 icon: const Icon(Icons.close,
-                                    size: 18, color: AppTheme.mutedText),
+                                    size: 18, color: menuMuted),
                                 tooltip: 'Clear search',
                                 onPressed: () {
                                   _searchCtrl.clear();
@@ -215,45 +249,39 @@ class _MenuItemsBodyContentState extends State<MenuItemsBodyContent> {
                             : null,
                         isDense: true,
                         contentPadding: const EdgeInsets.symmetric(
-                          horizontal: AppTheme.spacing12,
-                          vertical: AppTheme.spacing12,
+                          horizontal: 14,
+                          vertical: 12,
                         ),
                         filled: true,
-                        fillColor: AppTheme.cardSurface,
+                        fillColor: menuCard,
                         border: OutlineInputBorder(
-                          borderRadius:
-                              BorderRadius.circular(AppTheme.radiusCard),
-                          borderSide: const BorderSide(color: AppTheme.border),
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(color: menuBorder),
                         ),
                         enabledBorder: OutlineInputBorder(
-                          borderRadius:
-                              BorderRadius.circular(AppTheme.radiusCard),
-                          borderSide: const BorderSide(color: AppTheme.border),
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(color: menuBorder),
                         ),
                         focusedBorder: OutlineInputBorder(
-                          borderRadius:
-                              BorderRadius.circular(AppTheme.radiusCard),
-                          borderSide: const BorderSide(
-                              color: AppTheme.primary, width: 1.5),
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide:
+                              const BorderSide(color: menuAccent, width: 1.5),
                         ),
                       ),
                     ),
                   ),
 
-                  // ── Category filter chips ─────────────────────────
                   if (categories.isNotEmpty)
                     SizedBox(
-                      height: 36,
+                      height: 38,
                       child: ListView.separated(
                         scrollDirection: Axis.horizontal,
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: AppTheme.spacing16),
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
                         itemCount: categories.length + 1,
-                        separatorBuilder: (_, __) =>
-                            const SizedBox(width: AppTheme.spacing8),
+                        separatorBuilder: (_, __) => const SizedBox(width: 8),
                         itemBuilder: (ctx, i) {
                           if (i == 0) {
-                            return _FilterChip(
+                            return MenuChoiceChip(
                               label: 'All',
                               selected: _selectedCategory == null,
                               onTap: () => _onCategorySelected(null),
@@ -261,7 +289,7 @@ class _MenuItemsBodyContentState extends State<MenuItemsBodyContent> {
                           }
                           final cat = categories[i - 1];
                           final isSelected = _selectedCategory?.id == cat.id;
-                          return _FilterChip(
+                          return MenuChoiceChip(
                             label: cat.name,
                             selected: isSelected,
                             onTap: () =>
@@ -271,8 +299,7 @@ class _MenuItemsBodyContentState extends State<MenuItemsBodyContent> {
                       ),
                     ),
 
-                  if (categories.isNotEmpty)
-                    const SizedBox(height: AppTheme.spacing8),
+                  if (categories.isNotEmpty) const SizedBox(height: 8),
 
                   Expanded(child: body),
                 ],
@@ -295,13 +322,13 @@ class _LoadingBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.all(AppTheme.spacing16),
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
       child: GridView.builder(
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 3,
-          crossAxisSpacing: AppTheme.spacing8,
-          mainAxisSpacing: AppTheme.spacing8,
-          childAspectRatio: 2.6,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          childAspectRatio: 3.8,
         ),
         itemCount: 12,
         itemBuilder: (_, __) =>
@@ -444,24 +471,24 @@ class _LoadedBodyState extends State<_LoadedBody> {
           for (final entry in sortedGroups) ...[
             if (showHeaders)
               SliverToBoxAdapter(
-                child: _CategorySectionHeader(
+                child: MenuSectionHeader(
                   name: entry.value.categoryName,
                   count: entry.value.items.length,
                 ),
               ),
             SliverPadding(
               padding: EdgeInsets.only(
-                left: AppTheme.spacing16,
-                right: AppTheme.spacing16,
-                top: showHeaders ? AppTheme.spacing4 : AppTheme.spacing16,
-                bottom: AppTheme.spacing4,
+                left: 20,
+                right: 20,
+                top: showHeaders ? 4 : 8,
+                bottom: 4,
               ),
               sliver: SliverGrid(
                 gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: cols,
-                  crossAxisSpacing: AppTheme.spacing8,
-                  mainAxisSpacing: AppTheme.spacing8,
-                  childAspectRatio: 2.6,
+                  crossAxisSpacing: 12,
+                  mainAxisSpacing: 12,
+                  childAspectRatio: 3.8,
                 ),
                 delegate: SliverChildBuilderDelegate(
                   (ctx, i) => _MenuItemCard(item: entry.value.items[i]),
@@ -474,13 +501,16 @@ class _LoadedBodyState extends State<_LoadedBody> {
           // Footer: spinner while loading more, or item count when done.
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: AppTheme.spacing16),
+              padding: const EdgeInsets.symmetric(vertical: 16),
               child: widget.isLoadingMore
                   ? const Center(
                       child: SizedBox(
                         width: 24,
                         height: 24,
-                        child: CircularProgressIndicator(strokeWidth: 2),
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: menuAccent,
+                        ),
                       ),
                     )
                   : !widget.hasMore
@@ -488,7 +518,9 @@ class _LoadedBodyState extends State<_LoadedBody> {
                           child: Text(
                             '${widget.items.length} item${widget.items.length == 1 ? '' : 's'} shown',
                             style: const TextStyle(
-                                color: AppTheme.mutedText, fontSize: 12),
+                              color: menuMuted,
+                              fontSize: 12,
+                            ),
                           ),
                         )
                       : const SizedBox.shrink(),
@@ -526,83 +558,18 @@ class _EmptyState extends StatelessWidget {
         ? 'Add items or use Bulk Upload to get started'
         : null;
 
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            hasSearch || hasCategoryFilter
-                ? Icons.search_off
-                : Icons.restaurant_menu_outlined,
-            size: 56,
-            color: AppTheme.mutedText,
-          ),
-          const SizedBox(height: AppTheme.spacing12),
-          Text(message,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(color: AppTheme.mutedText)),
-          if (sub != null) ...[
-            const SizedBox(height: AppTheme.spacing8),
-            Text(sub,
-                style: Theme.of(context)
-                    .textTheme
-                    .bodySmall
-                    ?.copyWith(color: AppTheme.mutedText)),
-          ],
-        ],
-      ),
+    return MenuEmptyState(
+      icon: hasSearch || hasCategoryFilter
+          ? Icons.search_off
+          : Icons.restaurant_menu_outlined,
+      title: message,
+      subtitle: sub,
     );
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Category section header
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _CategorySectionHeader extends StatelessWidget {
-  const _CategorySectionHeader({required this.name, required this.count});
-  final String name;
-  final int count;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(
-        left: AppTheme.spacing16,
-        right: AppTheme.spacing16,
-        top: AppTheme.spacing16,
-        bottom: AppTheme.spacing4,
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.label_outline, size: 14, color: AppTheme.mutedText),
-          const SizedBox(width: AppTheme.spacing4),
-          Expanded(
-            child: Text(
-              name,
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0.2,
-                  ),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          const SizedBox(width: AppTheme.spacing8),
-          Text('$count',
-              style: Theme.of(context)
-                  .textTheme
-                  .labelSmall
-                  ?.copyWith(color: AppTheme.mutedText)),
-        ],
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Filter chips
+// Filter chip data
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _CategoryChipData {
@@ -613,44 +580,7 @@ class _CategoryChipData {
   });
   final String id; // primary — used for display/selection equality
   final String name;
-  final List<String> allIds; // all duplicate UUIDs for this name
-}
-
-class _FilterChip extends StatelessWidget {
-  const _FilterChip({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        alignment: Alignment.center,
-        padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacing12),
-        decoration: BoxDecoration(
-          color: selected ? AppTheme.primary : AppTheme.cardSurface,
-          borderRadius: BorderRadius.circular(AppTheme.radiusBadge),
-          border:
-              Border.all(color: selected ? AppTheme.primary : AppTheme.border),
-        ),
-        child: Text(
-          label,
-          style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                color: selected ? AppTheme.onPrimary : AppTheme.onSurface,
-                fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-              ),
-        ),
-      ),
-    );
-  }
+  final List<String> allIds;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -663,97 +593,15 @@ class _MenuItemCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final unavailable = !item.isAvailable;
-
-    return Semantics(
-      label: '${item.name}, ₹${item.basePrice.toStringAsFixed(0)}, '
-          '${item.isAvailable ? "available" : "unavailable"}',
-      child: Card(
-        elevation: 0,
-        clipBehavior: Clip.antiAlias,
-        color: unavailable ? AppTheme.surfaceVariant : AppTheme.cardSurface,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppTheme.radiusCard),
-          side: BorderSide(
-              color: unavailable ? AppTheme.outline : AppTheme.border),
-        ),
-        child: IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Container(
-                width: 4,
-                color: unavailable ? AppTheme.outline : AppTheme.success,
-              ),
-              const SizedBox(width: AppTheme.spacing8),
-              Center(child: DietaryBadge(type: item.dietaryType)),
-              const SizedBox(width: AppTheme.spacing8),
-              Expanded(
-                child: Padding(
-                  padding:
-                      const EdgeInsets.symmetric(vertical: AppTheme.spacing8),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        item.name,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              fontWeight: FontWeight.w600,
-                              color: unavailable
-                                  ? AppTheme.mutedText
-                                  : AppTheme.onSurface,
-                            ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '₹${item.basePrice.toStringAsFixed(0)}',
-                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                              color: AppTheme.primary,
-                              fontWeight: FontWeight.w700,
-                            ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              Center(
-                child: SizedBox(
-                  width: 30,
-                  height: 30,
-                  child: IconButton(
-                    padding: EdgeInsets.zero,
-                    icon: const Icon(Icons.edit_outlined, size: 13),
-                    color: AppTheme.primary,
-                    tooltip: 'Edit ${item.name}',
-                    onPressed: () => showMenuItemForm(context, item: item),
-                  ),
-                ),
-              ),
-              Center(
-                child: Semantics(
-                  label: unavailable
-                      ? 'Mark ${item.name} available'
-                      : 'Mark ${item.name} unavailable',
-                  child: Transform.scale(
-                    scale: 0.65,
-                    child: Switch(
-                      value: item.isAvailable,
-                      onChanged: (val) => context.read<MenuItemBloc>().add(
-                            MenuItemAvailabilityToggled(
-                                id: item.id, isAvailable: val),
-                          ),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: AppTheme.spacing4),
-            ],
+    return MenuItemTile(
+      name: item.name,
+      price: item.basePrice,
+      dietaryType: item.dietaryType,
+      isAvailable: item.isAvailable,
+      onEdit: () => showMenuItemForm(context, item: item),
+      onAvailabilityChanged: (val) => context.read<MenuItemBloc>().add(
+            MenuItemAvailabilityToggled(id: item.id, isAvailable: val),
           ),
-        ),
-      ),
     );
   }
 }

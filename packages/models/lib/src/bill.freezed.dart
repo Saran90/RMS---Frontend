@@ -510,8 +510,21 @@ mixin _$Bill {
   @_DoubleConverter()
   double get total => throw _privateConstructorUsedError;
 
-  /// Current bill status (e.g. "draft", "paid", "voided").
+  /// Current bill status (e.g. "open", "paid", "voided").
   String get status => throw _privateConstructorUsedError;
+
+  /// Human-readable bill number for receipts and payment descriptions.
+  @JsonKey(name: 'bill_number')
+  @_NullableStringConverter()
+  String? get billNumber => throw _privateConstructorUsedError;
+
+  /// Razorpay order id set after payment initiation.
+  @JsonKey(name: 'razorpay_order_id')
+  String? get razorpayOrderId => throw _privateConstructorUsedError;
+
+  /// Razorpay payment id set after successful verification.
+  @JsonKey(name: 'razorpay_payment_id')
+  String? get razorpayPaymentId => throw _privateConstructorUsedError;
 
   /// Payments applied to this bill.
   List<Payment> get payments => throw _privateConstructorUsedError;
@@ -537,6 +550,11 @@ abstract class $BillCopyWith<$Res> {
       @JsonKey(name: 'gst_breakdown') List<GstSlab> gstBreakdown,
       @_DoubleConverter() double total,
       String status,
+      @JsonKey(name: 'bill_number')
+      @_NullableStringConverter()
+      String? billNumber,
+      @JsonKey(name: 'razorpay_order_id') String? razorpayOrderId,
+      @JsonKey(name: 'razorpay_payment_id') String? razorpayPaymentId,
       List<Payment> payments});
 }
 
@@ -561,6 +579,9 @@ class _$BillCopyWithImpl<$Res, $Val extends Bill>
     Object? gstBreakdown = null,
     Object? total = null,
     Object? status = null,
+    Object? billNumber = freezed,
+    Object? razorpayOrderId = freezed,
+    Object? razorpayPaymentId = freezed,
     Object? payments = null,
   }) {
     return _then(_value.copyWith(
@@ -588,6 +609,18 @@ class _$BillCopyWithImpl<$Res, $Val extends Bill>
           ? _value.status
           : status // ignore: cast_nullable_to_non_nullable
               as String,
+      billNumber: freezed == billNumber
+          ? _value.billNumber
+          : billNumber // ignore: cast_nullable_to_non_nullable
+              as String?,
+      razorpayOrderId: freezed == razorpayOrderId
+          ? _value.razorpayOrderId
+          : razorpayOrderId // ignore: cast_nullable_to_non_nullable
+              as String?,
+      razorpayPaymentId: freezed == razorpayPaymentId
+          ? _value.razorpayPaymentId
+          : razorpayPaymentId // ignore: cast_nullable_to_non_nullable
+              as String?,
       payments: null == payments
           ? _value.payments
           : payments // ignore: cast_nullable_to_non_nullable
@@ -610,6 +643,11 @@ abstract class _$$BillImplCopyWith<$Res> implements $BillCopyWith<$Res> {
       @JsonKey(name: 'gst_breakdown') List<GstSlab> gstBreakdown,
       @_DoubleConverter() double total,
       String status,
+      @JsonKey(name: 'bill_number')
+      @_NullableStringConverter()
+      String? billNumber,
+      @JsonKey(name: 'razorpay_order_id') String? razorpayOrderId,
+      @JsonKey(name: 'razorpay_payment_id') String? razorpayPaymentId,
       List<Payment> payments});
 }
 
@@ -631,6 +669,9 @@ class __$$BillImplCopyWithImpl<$Res>
     Object? gstBreakdown = null,
     Object? total = null,
     Object? status = null,
+    Object? billNumber = freezed,
+    Object? razorpayOrderId = freezed,
+    Object? razorpayPaymentId = freezed,
     Object? payments = null,
   }) {
     return _then(_$BillImpl(
@@ -658,6 +699,18 @@ class __$$BillImplCopyWithImpl<$Res>
           ? _value.status
           : status // ignore: cast_nullable_to_non_nullable
               as String,
+      billNumber: freezed == billNumber
+          ? _value.billNumber
+          : billNumber // ignore: cast_nullable_to_non_nullable
+              as String?,
+      razorpayOrderId: freezed == razorpayOrderId
+          ? _value.razorpayOrderId
+          : razorpayOrderId // ignore: cast_nullable_to_non_nullable
+              as String?,
+      razorpayPaymentId: freezed == razorpayPaymentId
+          ? _value.razorpayPaymentId
+          : razorpayPaymentId // ignore: cast_nullable_to_non_nullable
+              as String?,
       payments: null == payments
           ? _value._payments
           : payments // ignore: cast_nullable_to_non_nullable
@@ -676,6 +729,9 @@ class _$BillImpl implements _Bill {
       @JsonKey(name: 'gst_breakdown') required final List<GstSlab> gstBreakdown,
       @_DoubleConverter() required this.total,
       required this.status,
+      @JsonKey(name: 'bill_number') @_NullableStringConverter() this.billNumber,
+      @JsonKey(name: 'razorpay_order_id') this.razorpayOrderId,
+      @JsonKey(name: 'razorpay_payment_id') this.razorpayPaymentId,
       final List<Payment> payments = const []})
       : _gstBreakdown = gstBreakdown,
         _payments = payments;
@@ -714,9 +770,25 @@ class _$BillImpl implements _Bill {
   @_DoubleConverter()
   final double total;
 
-  /// Current bill status (e.g. "draft", "paid", "voided").
+  /// Current bill status (e.g. "open", "paid", "voided").
   @override
   final String status;
+
+  /// Human-readable bill number for receipts and payment descriptions.
+  @override
+  @JsonKey(name: 'bill_number')
+  @_NullableStringConverter()
+  final String? billNumber;
+
+  /// Razorpay order id set after payment initiation.
+  @override
+  @JsonKey(name: 'razorpay_order_id')
+  final String? razorpayOrderId;
+
+  /// Razorpay payment id set after successful verification.
+  @override
+  @JsonKey(name: 'razorpay_payment_id')
+  final String? razorpayPaymentId;
 
   /// Payments applied to this bill.
   final List<Payment> _payments;
@@ -732,7 +804,7 @@ class _$BillImpl implements _Bill {
 
   @override
   String toString() {
-    return 'Bill(id: $id, orderId: $orderId, subtotal: $subtotal, gstBreakdown: $gstBreakdown, total: $total, status: $status, payments: $payments)';
+    return 'Bill(id: $id, orderId: $orderId, subtotal: $subtotal, gstBreakdown: $gstBreakdown, total: $total, status: $status, billNumber: $billNumber, razorpayOrderId: $razorpayOrderId, razorpayPaymentId: $razorpayPaymentId, payments: $payments)';
   }
 
   @override
@@ -748,6 +820,12 @@ class _$BillImpl implements _Bill {
                 .equals(other._gstBreakdown, _gstBreakdown) &&
             (identical(other.total, total) || other.total == total) &&
             (identical(other.status, status) || other.status == status) &&
+            (identical(other.billNumber, billNumber) ||
+                other.billNumber == billNumber) &&
+            (identical(other.razorpayOrderId, razorpayOrderId) ||
+                other.razorpayOrderId == razorpayOrderId) &&
+            (identical(other.razorpayPaymentId, razorpayPaymentId) ||
+                other.razorpayPaymentId == razorpayPaymentId) &&
             const DeepCollectionEquality().equals(other._payments, _payments));
   }
 
@@ -761,6 +839,9 @@ class _$BillImpl implements _Bill {
       const DeepCollectionEquality().hash(_gstBreakdown),
       total,
       status,
+      billNumber,
+      razorpayOrderId,
+      razorpayPaymentId,
       const DeepCollectionEquality().hash(_payments));
 
   /// Create a copy of Bill
@@ -787,6 +868,11 @@ abstract class _Bill implements Bill {
       @JsonKey(name: 'gst_breakdown') required final List<GstSlab> gstBreakdown,
       @_DoubleConverter() required final double total,
       required final String status,
+      @JsonKey(name: 'bill_number')
+      @_NullableStringConverter()
+      final String? billNumber,
+      @JsonKey(name: 'razorpay_order_id') final String? razorpayOrderId,
+      @JsonKey(name: 'razorpay_payment_id') final String? razorpayPaymentId,
       final List<Payment> payments}) = _$BillImpl;
 
   factory _Bill.fromJson(Map<String, dynamic> json) = _$BillImpl.fromJson;
@@ -815,9 +901,25 @@ abstract class _Bill implements Bill {
   @_DoubleConverter()
   double get total;
 
-  /// Current bill status (e.g. "draft", "paid", "voided").
+  /// Current bill status (e.g. "open", "paid", "voided").
   @override
   String get status;
+
+  /// Human-readable bill number for receipts and payment descriptions.
+  @override
+  @JsonKey(name: 'bill_number')
+  @_NullableStringConverter()
+  String? get billNumber;
+
+  /// Razorpay order id set after payment initiation.
+  @override
+  @JsonKey(name: 'razorpay_order_id')
+  String? get razorpayOrderId;
+
+  /// Razorpay payment id set after successful verification.
+  @override
+  @JsonKey(name: 'razorpay_payment_id')
+  String? get razorpayPaymentId;
 
   /// Payments applied to this bill.
   @override

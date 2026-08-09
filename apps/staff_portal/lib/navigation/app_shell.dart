@@ -26,9 +26,14 @@ const Color _contentBg = Color(0xFFF5F0E8);
 /// Wide (≥ 700 dp): dark sidebar (220 dp) + content area.
 /// Narrow (< 700 dp): bottom navigation bar.
 class AppShell extends StatelessWidget {
-  const AppShell({required this.child, super.key});
+  const AppShell({
+    required this.child,
+    required this.location,
+    super.key,
+  });
 
   final Widget child;
+  final String location;
 
   @override
   Widget build(BuildContext context) {
@@ -46,6 +51,7 @@ class AppShell extends StatelessWidget {
                 if (constraints.maxWidth >= 700) {
                   return _WideShell(
                     items: items,
+                    location: location,
                     isOffline: isOffline,
                     authState: authState,
                     child: child,
@@ -53,6 +59,7 @@ class AppShell extends StatelessWidget {
                 }
                 return _CompactShell(
                   items: items,
+                  location: location,
                   isOffline: isOffline,
                   child: child,
                 );
@@ -70,12 +77,14 @@ class AppShell extends StatelessWidget {
 class _WideShell extends StatelessWidget {
   const _WideShell({
     required this.items,
+    required this.location,
     required this.isOffline,
     required this.authState,
     required this.child,
   });
 
   final List<NavItem> items;
+  final String location;
   final bool isOffline;
   final AuthState authState;
   final Widget child;
@@ -90,7 +99,11 @@ class _WideShell extends StatelessWidget {
           Expanded(
             child: Row(
               children: [
-                _Sidebar(items: items, authState: authState),
+                _Sidebar(
+                  items: items,
+                  location: location,
+                  authState: authState,
+                ),
                 Expanded(
                   child: ClipRect(child: child),
                 ),
@@ -106,15 +119,18 @@ class _WideShell extends StatelessWidget {
 // ── Sidebar ───────────────────────────────────────────────────────────────────
 
 class _Sidebar extends StatelessWidget {
-  const _Sidebar({required this.items, required this.authState});
+  const _Sidebar({
+    required this.items,
+    required this.location,
+    required this.authState,
+  });
 
   final List<NavItem> items;
+  final String location;
   final AuthState authState;
 
   @override
   Widget build(BuildContext context) {
-    final location = GoRouterState.of(context).matchedLocation;
-
     // Resolve display name and restaurant name from auth state
     String userName = 'Owner';
     String restaurantName = 'My Restaurant';
@@ -373,11 +389,13 @@ class _NavItem extends StatelessWidget {
 class _CompactShell extends StatelessWidget {
   const _CompactShell({
     required this.items,
+    required this.location,
     required this.isOffline,
     required this.child,
   });
 
   final List<NavItem> items;
+  final String location;
   final bool isOffline;
   final Widget child;
 
@@ -389,7 +407,6 @@ class _CompactShell extends StatelessWidget {
     final overflowItems =
         items.length > maxBottom ? items.sublist(4) : <NavItem>[];
 
-    final location = GoRouterState.of(context).matchedLocation;
     final selectedIdx =
         items.indexWhere((item) => location.startsWith(item.route));
     final bottomIdx = selectedIdx < primaryItems.length ? selectedIdx : 0;

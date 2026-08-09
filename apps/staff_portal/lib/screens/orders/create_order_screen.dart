@@ -13,6 +13,7 @@ import 'package:staff_portal/menu/menu_category.dart';
 import 'package:staff_portal/menu/menu_category_bloc.dart';
 import 'package:staff_portal/menu/menu_repository.dart';
 import 'package:staff_portal/orders/order_bloc.dart';
+import 'package:staff_portal/orders/order_design.dart';
 import 'package:staff_portal/tables/table_bloc.dart';
 import 'package:staff_portal/tables/table_repository.dart';
 
@@ -84,10 +85,7 @@ class _CreateOrderViewState extends State<_CreateOrderView> {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: AppTheme.cardSurface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
+      backgroundColor: Colors.transparent,
       builder: (_) => BlocProvider.value(
         value: context.read<MenuCategoryBloc>(),
         child: _ItemPickerSheet(
@@ -110,6 +108,10 @@ class _CreateOrderViewState extends State<_CreateOrderView> {
 
   void _submit() {
     setState(() => _errorMessage = null);
+    if (_orderType == null) {
+      setState(() => _errorMessage = 'Please select an order type.');
+      return;
+    }
     if (!_formKey.currentState!.validate()) return;
     if (_cart.isEmpty) {
       setState(() => _errorMessage = 'Add at least one item to the order.');
@@ -151,6 +153,9 @@ class _CreateOrderViewState extends State<_CreateOrderView> {
     context.read<OrderBloc>().add(OrderCreateRequested(payload));
   }
 
+  double get _cartTotal =>
+      _cartItems.fold(0.0, (s, c) => s + c.menuItem.basePrice * c.quantity);
+
   @override
   Widget build(BuildContext context) {
     return BlocListener<OrderBloc, OrderState>(
@@ -165,168 +170,265 @@ class _CreateOrderViewState extends State<_CreateOrderView> {
         }
       },
       child: Scaffold(
-        backgroundColor: AppTheme.surface,
-        appBar: AppBar(title: const Text('New Order')),
+        backgroundColor: orderBg,
         body: Form(
           key: _formKey,
-          child: ListView(
-            padding: const EdgeInsets.all(AppTheme.spacing16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (_errorMessage != null) ...[
-                _ErrorBanner(
-                  message: _errorMessage!,
-                  onDismiss: () => setState(() => _errorMessage = null),
-                ),
-                const SizedBox(height: AppTheme.spacing16),
-              ],
-
-              // Order type
-              const _SectionLabel(label: 'Order Type'),
-              const SizedBox(height: AppTheme.spacing8),
-              DropdownButtonFormField<OrderType>(
-                decoration: const InputDecoration(labelText: 'Order Type'),
-                initialValue: _orderType,
-                items: const [
-                  DropdownMenuItem(
-                      value: OrderType.dineIn, child: Text('Dine-in')),
-                  DropdownMenuItem(
-                      value: OrderType.takeaway, child: Text('Takeaway')),
-                  DropdownMenuItem(
-                      value: OrderType.delivery, child: Text('Delivery')),
-                ],
-                onChanged: (v) => setState(() {
-                  _orderType = v;
-                  _selectedTable = null;
-                }),
-                validator: (_) =>
-                    _orderType == null ? 'Please select an order type' : null,
+              _CreateOrderHeader(
+                itemCount: _cart.length,
+                total: _cartTotal,
+                submitting: _submitting,
+                onCreate: _submit,
               ),
-              const SizedBox(height: AppTheme.spacing24),
-
-              // Table (dine-in only)
-              if (_isDineIn) ...[
-                const _SectionLabel(label: 'Table'),
-                const SizedBox(height: AppTheme.spacing8),
-                _TableDropdown(
-                  selectedTable: _selectedTable,
-                  onChanged: (t) => setState(() => _selectedTable = t),
-                  isDineIn: _isDineIn,
-                ),
-                const SizedBox(height: AppTheme.spacing24),
-              ],
-
-              // Items section
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const _SectionLabel(label: 'Items'),
-                  FilledButton.icon(
-                    onPressed: _openItemPicker,
-                    icon: const Icon(Icons.add, size: 16),
-                    label: const Text('Add Items'),
-                    style: FilledButton.styleFrom(
-                      minimumSize: const Size(0, 36),
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                  children: [
+                    if (_errorMessage != null) ...[
+                      _ErrorBanner(
+                        message: _errorMessage!,
+                        onDismiss: () => setState(() => _errorMessage = null),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                    OrderSectionCard(
+                      title: 'Order type',
+                      child: Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          OrderChoiceChip(
+                            label: 'Dine-in',
+                            selected: _orderType == OrderType.dineIn,
+                            onTap: () => setState(() {
+                              _orderType = OrderType.dineIn;
+                              _selectedTable = null;
+                            }),
+                          ),
+                          OrderChoiceChip(
+                            label: 'Takeaway',
+                            selected: _orderType == OrderType.takeaway,
+                            onTap: () => setState(() {
+                              _orderType = OrderType.takeaway;
+                              _selectedTable = null;
+                            }),
+                          ),
+                          OrderChoiceChip(
+                            label: 'Delivery',
+                            selected: _orderType == OrderType.delivery,
+                            onTap: () => setState(() {
+                              _orderType = OrderType.delivery;
+                              _selectedTable = null;
+                            }),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppTheme.spacing8),
-
-              // Warning for unavailable items in cart
-              if (_cartItems.any((c) => !c.menuItem.isAvailable)) ...[
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppTheme.spacing12,
-                    vertical: AppTheme.spacing8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppTheme.errorContainer,
-                    borderRadius: BorderRadius.circular(AppTheme.radiusCard),
-                    border: Border.all(
-                        color: AppTheme.error.withValues(alpha: 0.3)),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.warning_amber,
-                          size: 20, color: AppTheme.error),
-                      const SizedBox(width: AppTheme.spacing8),
-                      Expanded(
-                        child: Text(
-                          'Some items in your cart are unavailable and must be removed before creating the order',
-                          style:
-                              Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: AppTheme.onErrorContainer,
-                                  ),
+                    if (_isDineIn) ...[
+                      const SizedBox(height: 16),
+                      OrderSectionCard(
+                        title: 'Table',
+                        child: _TableDropdown(
+                          selectedTable: _selectedTable,
+                          onChanged: (t) => setState(() => _selectedTable = t),
+                          isDineIn: _isDineIn,
                         ),
                       ),
                     ],
-                  ),
-                ),
-                const SizedBox(height: AppTheme.spacing8),
-              ],
-
-              if (_cart.isEmpty)
-                Container(
-                  padding: const EdgeInsets.all(AppTheme.spacing16),
-                  decoration: BoxDecoration(
-                    color: AppTheme.surfaceVariant,
-                    borderRadius: BorderRadius.circular(AppTheme.radiusCard),
-                    border: Border.all(color: AppTheme.border),
-                  ),
-                  child: const Center(
-                    child: Text(
-                        'No items added yet — tap Add Items to browse the menu',
-                        textAlign: TextAlign.center,
-                        style:
-                            TextStyle(color: AppTheme.mutedText, fontSize: 13)),
-                  ),
-                )
-              else
-                ..._cartItems.map((c) => _CartItemRow(
-                      cartItem: c,
-                      onQtyChanged: (qty) => _setQty(c.menuItem.id, qty),
-                    )),
-
-              const SizedBox(height: AppTheme.spacing16),
-
-              // Order total
-              if (_cart.isNotEmpty) ...[
-                const Divider(),
-                Padding(
-                  padding:
-                      const EdgeInsets.symmetric(vertical: AppTheme.spacing8),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('Total',
-                          style: Theme.of(context).textTheme.titleSmall),
-                      Text(
-                        '₹${_cartItems.fold(0.0, (s, c) => s + c.menuItem.basePrice * c.quantity).toStringAsFixed(2)}',
-                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                            color: AppTheme.primary,
-                            fontWeight: FontWeight.w700),
+                    const SizedBox(height: 16),
+                    OrderSectionCard(
+                      title: 'Items',
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: FilledButton.icon(
+                              onPressed: _openItemPicker,
+                              icon: const Icon(Icons.add, size: 16),
+                              label: const Text('Add items'),
+                              style: FilledButton.styleFrom(
+                                backgroundColor: orderAccent,
+                                foregroundColor: Colors.white,
+                                minimumSize: const Size(0, 36),
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 14),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          if (_cartItems.any((c) => !c.menuItem.isAvailable)) ...[
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: AppTheme.error.withValues(alpha: 0.08),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: AppTheme.error.withValues(alpha: 0.35),
+                                ),
+                              ),
+                              child: const Row(
+                                children: [
+                                  Icon(Icons.warning_amber,
+                                      size: 18, color: AppTheme.error),
+                                  SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'Remove unavailable items before creating the order',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: AppTheme.error,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                          ],
+                          if (_cart.isEmpty)
+                            Container(
+                              padding: const EdgeInsets.all(20),
+                              decoration: BoxDecoration(
+                                color: orderDivider,
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: orderBorder),
+                              ),
+                              child: const Text(
+                                'No items yet — tap Add items to browse the menu',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: orderMuted,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            )
+                          else
+                            ..._cartItems.map(
+                              (c) => _CartItemRow(
+                                cartItem: c,
+                                onQtyChanged: (qty) =>
+                                    _setQty(c.menuItem.id, qty),
+                              ),
+                            ),
+                          if (_cart.isNotEmpty) ...[
+                            const SizedBox(height: 12),
+                            const Divider(height: 1, color: orderDivider),
+                            const SizedBox(height: 12),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text(
+                                  'Total',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w800,
+                                    color: orderTitle,
+                                  ),
+                                ),
+                                Text(
+                                  '₹${_cartTotal.toStringAsFixed(2)}',
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w800,
+                                    color: orderAccent,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ],
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-              ],
-
-              const SizedBox(height: AppTheme.spacing24),
-              FilledButton(
-                onPressed: _submitting ? null : _submit,
-                child: _submitting
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2, color: AppTheme.onPrimary))
-                    : const Text('Create Order'),
               ),
-              const SizedBox(height: AppTheme.spacing16),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ── Page header ───────────────────────────────────────────────────────────────
+
+class _CreateOrderHeader extends StatelessWidget {
+  const _CreateOrderHeader({
+    required this.itemCount,
+    required this.total,
+    required this.submitting,
+    required this.onCreate,
+  });
+
+  final int itemCount;
+  final double total;
+  final bool submitting;
+  final VoidCallback onCreate;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          IconButton(
+            tooltip: 'Back to orders',
+            onPressed: () => context.pop(),
+            icon: const Icon(Icons.arrow_back, color: orderTitle),
+            style: IconButton.styleFrom(
+              backgroundColor: orderCard,
+              side: const BorderSide(color: orderBorder),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'New order',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    color: orderTitle,
+                    letterSpacing: -0.3,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  itemCount == 0
+                      ? 'Select type and add menu items'
+                      : '$itemCount ${itemCount == 1 ? 'item' : 'items'} · ₹${total.toStringAsFixed(2)}',
+                  style: const TextStyle(fontSize: 12.5, color: orderMuted),
+                ),
+              ],
+            ),
+          ),
+          FilledButton.icon(
+            onPressed: submitting ? null : onCreate,
+            icon: submitting
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Icon(Icons.check, size: 18),
+            label: const Text('Create order'),
+            style: FilledButton.styleFrom(
+              backgroundColor: orderAccent,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -347,120 +449,138 @@ class _CartItemRow extends StatelessWidget {
     final isUnavailable = !item.isAvailable;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: AppTheme.spacing8),
-      padding: const EdgeInsets.symmetric(
-          horizontal: AppTheme.spacing12, vertical: AppTheme.spacing8),
+      margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
-        color: isUnavailable
-            ? AppTheme.errorContainer.withValues(alpha: 0.1)
-            : AppTheme.cardSurface,
-        borderRadius: BorderRadius.circular(AppTheme.radiusCard),
+        color: isUnavailable ? orderDivider.withValues(alpha: 0.5) : orderBg,
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(
           color: isUnavailable
-              ? AppTheme.error.withValues(alpha: 0.3)
-              : AppTheme.border,
+              ? AppTheme.error.withValues(alpha: 0.35)
+              : orderBorder,
         ),
       ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              DietaryBadge(type: item.dietaryType),
-              const SizedBox(width: AppTheme.spacing8),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+      clipBehavior: Clip.antiAlias,
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              width: 3,
+              color: isUnavailable ? AppTheme.error : orderAccent,
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(10, 10, 8, 10),
+                child: Row(
                   children: [
-                    Text(item.name,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              fontWeight: FontWeight.w600,
+                    DietaryBadge(type: item.dietaryType),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            item.name,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: isUnavailable ? orderMuted : orderTitle,
                               decoration: isUnavailable
                                   ? TextDecoration.lineThrough
                                   : null,
-                              color: isUnavailable ? AppTheme.mutedText : null,
                             ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis),
-                    Text('₹${item.basePrice.toStringAsFixed(0)} each',
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodySmall
-                            ?.copyWith(color: AppTheme.mutedText)),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          Text(
+                            '₹${item.basePrice.toStringAsFixed(0)} each',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: orderMuted,
+                            ),
+                          ),
+                          if (isUnavailable)
+                            const Text(
+                              'Unavailable',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: AppTheme.error,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    _QtyStepper(
+                      quantity: cartItem.quantity,
+                      onDecrement: () => onQtyChanged(cartItem.quantity - 1),
+                      onIncrement: () => onQtyChanged(cartItem.quantity + 1),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '₹${(item.basePrice * cartItem.quantity).toStringAsFixed(0)}',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        color: isUnavailable ? orderMuted : orderAccent,
+                      ),
+                    ),
                   ],
                 ),
               ),
-              // Qty stepper
-              Row(
-                children: [
-                  SizedBox(
-                    width: 32,
-                    height: 32,
-                    child: IconButton(
-                      padding: EdgeInsets.zero,
-                      icon: const Icon(Icons.remove, size: 16),
-                      onPressed: () => onQtyChanged(cartItem.quantity - 1),
-                    ),
-                  ),
-                  SizedBox(
-                    width: 32,
-                    child: Text('${cartItem.quantity}',
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodyMedium
-                            ?.copyWith(fontWeight: FontWeight.w600)),
-                  ),
-                  SizedBox(
-                    width: 32,
-                    height: 32,
-                    child: IconButton(
-                      padding: EdgeInsets.zero,
-                      icon: const Icon(Icons.add, size: 16),
-                      onPressed: () => onQtyChanged(cartItem.quantity + 1),
-                    ),
-                  ),
-                ],
-              ),
-              // Line total
-              SizedBox(
-                width: 64,
-                child: Text(
-                  '₹${(item.basePrice * cartItem.quantity).toStringAsFixed(0)}',
-                  textAlign: TextAlign.right,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AppTheme.primary, fontWeight: FontWeight.w700),
-                ),
-              ),
-            ],
-          ),
-          if (isUnavailable) ...[
-            const SizedBox(height: AppTheme.spacing8),
-            Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppTheme.spacing8,
-                vertical: AppTheme.spacing4,
-              ),
-              decoration: BoxDecoration(
-                color: AppTheme.errorContainer,
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.warning_amber,
-                      size: 14, color: AppTheme.error),
-                  const SizedBox(width: AppTheme.spacing4),
-                  Text(
-                    'This item is currently unavailable',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppTheme.onErrorContainer,
-                          fontSize: 11,
-                        ),
-                  ),
-                ],
-              ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _QtyStepper extends StatelessWidget {
+  const _QtyStepper({
+    required this.quantity,
+    required this.onDecrement,
+    required this.onIncrement,
+  });
+
+  final int quantity;
+  final VoidCallback onDecrement;
+  final VoidCallback onIncrement;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: orderCard,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: orderBorder),
+      ),
+      child: Row(
+        children: [
+          IconButton(
+            visualDensity: VisualDensity.compact,
+            icon: const Icon(Icons.remove, size: 16),
+            onPressed: onDecrement,
+            color: orderTitle,
+          ),
+          SizedBox(
+            width: 24,
+            child: Text(
+              '$quantity',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: orderTitle,
+              ),
+            ),
+          ),
+          IconButton(
+            visualDensity: VisualDensity.compact,
+            icon: const Icon(Icons.add, size: 16),
+            onPressed: onIncrement,
+            color: orderAccent,
+          ),
         ],
       ),
     );
@@ -686,155 +806,177 @@ class _ItemPickerSheetState extends State<_ItemPickerSheet> {
       initialChildSize: 0.85,
       minChildSize: 0.5,
       maxChildSize: 0.95,
-      builder: (_, scrollCtrl) => Column(
-        children: [
-          // Handle bar + title row
-          Padding(
-            padding: const EdgeInsets.fromLTRB(AppTheme.spacing16,
-                AppTheme.spacing12, AppTheme.spacing16, AppTheme.spacing8),
-            child: Column(
-              children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                        color: AppTheme.border,
-                        borderRadius: BorderRadius.circular(2)),
+      builder: (_, scrollCtrl) => Container(
+        decoration: const BoxDecoration(
+          color: orderCard,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        ),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+              child: Column(
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: orderBorder,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
                   ),
-                ),
-                const SizedBox(height: AppTheme.spacing12),
-                Row(
-                  children: [
-                    Expanded(
-                        child: Text('Add Items',
-                            style: Theme.of(context).textTheme.titleLarge)),
-                    if (selectedCount > 0)
-                      FilledButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        style: FilledButton.styleFrom(
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'Add items',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            color: orderTitle,
+                          ),
+                        ),
+                      ),
+                      if (selectedCount > 0)
+                        FilledButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: orderAccent,
+                            foregroundColor: Colors.white,
                             minimumSize: const Size(0, 36),
                             padding:
-                                const EdgeInsets.symmetric(horizontal: 16)),
-                        child: Text('Done ($selectedCount)'),
-                      ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-
-          // Search bar
-          Padding(
-            padding: const EdgeInsets.symmetric(
-                horizontal: AppTheme.spacing16, vertical: AppTheme.spacing4),
-            child: TextField(
-              controller: _searchCtrl,
-              onChanged: _onSearchChanged,
-              decoration: InputDecoration(
-                hintText: 'Search items…',
-                prefixIcon: const Icon(Icons.search,
-                    size: 20, color: AppTheme.mutedText),
-                suffixIcon: _query.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.close,
-                            size: 18, color: AppTheme.mutedText),
-                        onPressed: () {
-                          _searchCtrl.clear();
-                          _query = '';
-                          _fetchItems();
-                        })
-                    : null,
-                isDense: true,
-                contentPadding: const EdgeInsets.symmetric(
-                    horizontal: AppTheme.spacing12,
-                    vertical: AppTheme.spacing12),
-                filled: true,
-                fillColor: AppTheme.surfaceVariant,
-                border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(AppTheme.radiusCard),
-                    borderSide: const BorderSide(color: AppTheme.border)),
-                enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(AppTheme.radiusCard),
-                    borderSide: const BorderSide(color: AppTheme.border)),
-                focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(AppTheme.radiusCard),
-                    borderSide:
-                        const BorderSide(color: AppTheme.primary, width: 1.5)),
+                                const EdgeInsets.symmetric(horizontal: 16),
+                          ),
+                          child: Text('Done ($selectedCount)'),
+                        ),
+                    ],
+                  ),
+                ],
               ),
             ),
-          ),
-
-          // Category filter chips
-          BlocBuilder<MenuCategoryBloc, MenuCategoryState>(
-            builder: (context, catState) {
-              final categories = _uniqueCategories(catState);
-              if (categories.isEmpty) return const SizedBox.shrink();
-              return SizedBox(
-                height: 36,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: AppTheme.spacing16),
-                  itemCount: categories.length + 1,
-                  separatorBuilder: (_, __) =>
-                      const SizedBox(width: AppTheme.spacing8),
-                  itemBuilder: (ctx, i) {
-                    if (i == 0) {
-                      return _FilterChip(
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+              child: TextField(
+                controller: _searchCtrl,
+                onChanged: _onSearchChanged,
+                decoration: InputDecoration(
+                  hintText: 'Search items…',
+                  hintStyle: const TextStyle(color: orderMuted),
+                  prefixIcon:
+                      const Icon(Icons.search, size: 20, color: orderMuted),
+                  suffixIcon: _query.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.close,
+                              size: 18, color: orderMuted),
+                          onPressed: () {
+                            _searchCtrl.clear();
+                            _query = '';
+                            _fetchItems();
+                          },
+                        )
+                      : null,
+                  isDense: true,
+                  filled: true,
+                  fillColor: orderBg,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: orderBorder),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: orderBorder),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide:
+                        const BorderSide(color: orderAccent, width: 1.5),
+                  ),
+                ),
+              ),
+            ),
+            BlocBuilder<MenuCategoryBloc, MenuCategoryState>(
+              builder: (context, catState) {
+                final categories = _uniqueCategories(catState);
+                if (categories.isEmpty) return const SizedBox.shrink();
+                return SizedBox(
+                  height: 38,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    itemCount: categories.length + 1,
+                    separatorBuilder: (_, __) => const SizedBox(width: 8),
+                    itemBuilder: (ctx, i) {
+                      if (i == 0) {
+                        return OrderChoiceChip(
                           label: 'All',
                           selected: _selectedCategory == null,
-                          onTap: () => _onCategorySelected(null));
-                    }
-                    final cat = categories[i - 1];
-                    // Use allIds equality so selection survives rebuilds
-                    final isSelected = _selectedCategory != null &&
-                        _selectedCategory!.allIds.containsAll(cat.allIds) &&
-                        cat.allIds.containsAll(_selectedCategory!.allIds);
-                    return _FilterChip(
+                          onTap: () => _onCategorySelected(null),
+                        );
+                      }
+                      final cat = categories[i - 1];
+                      final isSelected = _selectedCategory != null &&
+                          _selectedCategory!.allIds.containsAll(cat.allIds) &&
+                          cat.allIds.containsAll(_selectedCategory!.allIds);
+                      return OrderChoiceChip(
                         label: cat.name,
                         selected: isSelected,
                         onTap: () =>
-                            _onCategorySelected(isSelected ? null : cat));
-                  },
-                ),
-              );
-            },
-          ),
-          const SizedBox(height: AppTheme.spacing8),
-
-          // Item list
-          Expanded(child: _buildItemList(scrollCtrl)),
-        ],
+                            _onCategorySelected(isSelected ? null : cat),
+                      );
+                    },
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 8),
+            Expanded(child: _buildItemList(scrollCtrl)),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildItemList(ScrollController scrollCtrl) {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator());
+      return const Center(
+        child: CircularProgressIndicator(color: orderAccent),
+      );
     }
     if (_error != null) {
       return Center(
         child: Padding(
-          padding: const EdgeInsets.all(AppTheme.spacing16),
+          padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               const Icon(Icons.error_outline, color: AppTheme.error, size: 32),
-              const SizedBox(height: AppTheme.spacing8),
-              Text('Failed to load items',
-                  style: Theme.of(context).textTheme.bodyMedium),
-              const SizedBox(height: AppTheme.spacing8),
-              Text(_error!,
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodySmall
-                      ?.copyWith(color: AppTheme.mutedText)),
-              const SizedBox(height: AppTheme.spacing8),
+              const SizedBox(height: 12),
+              const Text(
+                'Failed to load items',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: orderTitle,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                _error!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 13, color: orderMuted),
+              ),
+              const SizedBox(height: 16),
               OutlinedButton(
-                  onPressed: _fetchItems, child: const Text('Retry')),
+                onPressed: _fetchItems,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: orderAccent,
+                  side: const BorderSide(color: orderAccent),
+                ),
+                child: const Text('Retry'),
+              ),
             ],
           ),
         ),
@@ -847,27 +989,38 @@ class _ItemPickerSheetState extends State<_ItemPickerSheet> {
     if (availableItems.isEmpty) {
       return Center(
         child: Padding(
-          padding: const EdgeInsets.all(AppTheme.spacing16),
+          padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.restaurant_menu_outlined,
-                  color: AppTheme.mutedText, size: 48),
-              const SizedBox(height: AppTheme.spacing12),
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  color: orderAccent.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Icon(
+                  Icons.restaurant_menu_outlined,
+                  color: orderAccent,
+                  size: 32,
+                ),
+              ),
+              const SizedBox(height: 16),
               Text(
                 _items.isEmpty ? 'No items found' : 'No items available',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: AppTheme.mutedText,
-                    ),
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: orderTitle,
+                ),
               ),
               if (_items.isNotEmpty) ...[
-                const SizedBox(height: AppTheme.spacing8),
-                Text(
+                const SizedBox(height: 8),
+                const Text(
                   'All items in this category are currently unavailable',
                   textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppTheme.mutedText,
-                      ),
+                  style: TextStyle(fontSize: 13, color: orderMuted),
                 ),
               ],
             ],
@@ -878,10 +1031,9 @@ class _ItemPickerSheetState extends State<_ItemPickerSheet> {
 
     return ListView.separated(
       controller: scrollCtrl,
-      padding: const EdgeInsets.fromLTRB(
-          AppTheme.spacing16, 0, AppTheme.spacing16, AppTheme.spacing32),
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
       itemCount: availableItems.length,
-      separatorBuilder: (_, __) => const SizedBox(height: AppTheme.spacing8),
+      separatorBuilder: (_, __) => const SizedBox(height: 8),
       itemBuilder: (ctx, i) {
         final item = availableItems[i];
         final cartEntry = widget.cart[item.id];
@@ -919,77 +1071,58 @@ class _PickerItemTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final inCart = qty > 0;
     return Container(
-      padding: const EdgeInsets.symmetric(
-          horizontal: AppTheme.spacing12, vertical: AppTheme.spacing8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: inCart ? AppTheme.primaryContainer : AppTheme.cardSurface,
-        borderRadius: BorderRadius.circular(AppTheme.radiusCard),
-        border: Border.all(color: inCart ? AppTheme.primary : AppTheme.border),
+        color: inCart ? orderAccent.withValues(alpha: 0.06) : orderBg,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: inCart ? orderAccent.withValues(alpha: 0.35) : orderBorder,
+        ),
       ),
       child: Row(
         children: [
           DietaryBadge(type: item.dietaryType),
-          const SizedBox(width: AppTheme.spacing8),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(item.name,
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodyMedium
-                        ?.copyWith(fontWeight: FontWeight.w600),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis),
-                Text('₹${item.basePrice.toStringAsFixed(0)}',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppTheme.primary, fontWeight: FontWeight.w700)),
+                Text(
+                  item.name,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: orderTitle,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  '₹${item.basePrice.toStringAsFixed(0)}',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: orderAccent,
+                  ),
+                ),
               ],
             ),
           ),
           if (!inCart)
-            SizedBox(
-              height: 36,
-              child: OutlinedButton(
-                onPressed: onAdd,
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  minimumSize: Size.zero,
-                  side: const BorderSide(color: AppTheme.primary),
-                ),
-                child: const Text('Add'),
+            OutlinedButton(
+              onPressed: onAdd,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: orderAccent,
+                side: const BorderSide(color: orderAccent),
+                padding: const EdgeInsets.symmetric(horizontal: 14),
               ),
+              child: const Text('Add'),
             )
           else
-            Row(
-              children: [
-                SizedBox(
-                  width: 32,
-                  height: 32,
-                  child: IconButton(
-                    padding: EdgeInsets.zero,
-                    icon: const Icon(Icons.remove, size: 16),
-                    onPressed: onDecrement,
-                  ),
-                ),
-                SizedBox(
-                    width: 28,
-                    child: Text('$qty',
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodyMedium
-                            ?.copyWith(fontWeight: FontWeight.w700))),
-                SizedBox(
-                  width: 32,
-                  height: 32,
-                  child: IconButton(
-                    padding: EdgeInsets.zero,
-                    icon: const Icon(Icons.add, size: 16),
-                    onPressed: onIncrement,
-                  ),
-                ),
-              ],
+            _QtyStepper(
+              quantity: qty,
+              onDecrement: onDecrement,
+              onIncrement: onIncrement,
             ),
         ],
       ),
@@ -1016,20 +1149,30 @@ class _TableDropdown extends StatelessWidget {
     return BlocBuilder<TableBloc, TableState>(
       builder: (context, state) {
         if (state is TableInitial || state is TableLoading) {
-          return InputDecorator(
-            decoration: const InputDecoration(labelText: 'Table'),
-            child: Row(children: [
-              const SizedBox(
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+            decoration: BoxDecoration(
+              color: orderBg,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: orderBorder),
+            ),
+            child: const Row(
+              children: [
+                SizedBox(
                   width: 16,
                   height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2)),
-              const SizedBox(width: AppTheme.spacing8),
-              Text('Loading tables…',
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodyMedium
-                      ?.copyWith(color: AppTheme.mutedText)),
-            ]),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: orderAccent,
+                  ),
+                ),
+                SizedBox(width: 10),
+                Text(
+                  'Loading tables…',
+                  style: TextStyle(fontSize: 13, color: orderMuted),
+                ),
+              ],
+            ),
           );
         }
         final tables = switch (state) {
@@ -1044,9 +1187,27 @@ class _TableDropdown extends StatelessWidget {
             return a.tableNumber.compareTo(b.tableNumber);
           });
         return DropdownButtonFormField<Table>(
-          decoration: const InputDecoration(labelText: 'Table *'),
+          decoration: InputDecoration(
+            labelText: 'Table *',
+            labelStyle: const TextStyle(color: orderMuted, fontSize: 13),
+            filled: true,
+            fillColor: orderBg,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: orderBorder),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: orderBorder),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: orderAccent, width: 1.5),
+            ),
+          ),
+          dropdownColor: orderCard,
           value: selectedTable,
-          hint: const Text('Select a table'),
+          hint: const Text('Select a table', style: TextStyle(color: orderMuted)),
           isExpanded: true,
           items: sorted.map((table) {
             final available = table.status == TableStatus.available;
@@ -1059,10 +1220,13 @@ class _TableDropdown extends StatelessWidget {
             return DropdownMenuItem<Table>(
               value: table,
               enabled: available,
-              child: Text('Table ${table.tableNumber}$suffix',
-                  style: TextStyle(
-                      color:
-                          available ? AppTheme.onSurface : AppTheme.mutedText)),
+              child: Text(
+                'Table ${table.tableNumber}$suffix',
+                style: TextStyle(
+                  color: available ? orderTitle : orderMuted,
+                  fontSize: 13,
+                ),
+              ),
             );
           }).toList(),
           onChanged: onChanged,
@@ -1087,42 +1251,6 @@ class _CategoryChipData {
   final Set<String> allIds; // All duplicate IDs with the same name
 }
 
-class _FilterChip extends StatelessWidget {
-  const _FilterChip({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        alignment: Alignment.center,
-        padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacing12),
-        decoration: BoxDecoration(
-          color: selected ? AppTheme.primary : AppTheme.cardSurface,
-          borderRadius: BorderRadius.circular(AppTheme.radiusBadge),
-          border:
-              Border.all(color: selected ? AppTheme.primary : AppTheme.border),
-        ),
-        child: Text(
-          label,
-          style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                color: selected ? AppTheme.onPrimary : AppTheme.onSurface,
-                fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-              ),
-        ),
-      ),
-    );
-  }
-}
-
 class _ErrorBanner extends StatelessWidget {
   const _ErrorBanner({required this.message, required this.onDismiss});
   final String message;
@@ -1131,27 +1259,29 @@ class _ErrorBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(
-          horizontal: AppTheme.spacing16, vertical: AppTheme.spacing12),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: AppTheme.errorContainer,
-        borderRadius: BorderRadius.circular(AppTheme.radiusCard),
-        border: Border.all(color: AppTheme.error.withValues(alpha: 0.4)),
+        color: AppTheme.error.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppTheme.error.withValues(alpha: 0.35)),
       ),
       child: Row(
         children: [
           const Icon(Icons.error_outline, color: AppTheme.error, size: 20),
-          const SizedBox(width: AppTheme.spacing8),
+          const SizedBox(width: 10),
           Expanded(
-            child: Text(message,
-                style: Theme.of(context)
-                    .textTheme
-                    .bodyMedium
-                    ?.copyWith(color: AppTheme.onErrorContainer)),
+            child: Text(
+              message,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: orderTitle,
+              ),
+            ),
           ),
           IconButton(
             icon: const Icon(Icons.close, size: 18),
-            color: AppTheme.onErrorContainer,
+            color: orderMuted,
             onPressed: onDismiss,
             tooltip: 'Dismiss',
             padding: EdgeInsets.zero,
@@ -1159,22 +1289,6 @@ class _ErrorBanner extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _SectionLabel extends StatelessWidget {
-  const _SectionLabel({required this.label});
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      label,
-      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-            color: AppTheme.mutedText,
-            fontWeight: FontWeight.w600,
-          ),
     );
   }
 }

@@ -1,7 +1,7 @@
 import 'dart:js_interop';
 import 'dart:js_interop_unsafe';
 
-import 'onboarding_repository.dart';
+import '../payments/razorpay_checkout_params.dart';
 import 'razorpay_checkout_options.dart';
 
 /// Razorpay Checkout.js integration for Flutter web.
@@ -28,7 +28,7 @@ class RazorpayPaymentHandler {
   void dispose() {}
 
   void open(
-    InitiatePaymentResponse payment, {
+    RazorpayCheckoutParams checkoutParams, {
     String? email,
     String? contact,
   }) {
@@ -69,7 +69,7 @@ class RazorpayPaymentHandler {
 
       final options = <String, Object?>{
         ...buildRazorpayBaseOptions(
-          payment,
+          checkoutParams,
           email: email,
           contact: contact,
         ),

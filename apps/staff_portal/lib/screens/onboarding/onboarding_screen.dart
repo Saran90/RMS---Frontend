@@ -9,6 +9,7 @@ import 'package:go_router/go_router.dart';
 import 'package:staff_portal/onboarding/onboarding_bloc.dart';
 import 'package:staff_portal/onboarding/onboarding_repository.dart';
 import 'package:staff_portal/onboarding/razorpay_payment_handler.dart';
+import 'package:staff_portal/utils/money_parser.dart';
 import 'package:staff_portal/router/app_router.dart';
 import 'package:staff_portal/subscription/subscription_guard_cubit.dart';
 
@@ -63,7 +64,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     }
     _lastCheckout = state;
     _razorpay?.open(
-      state.payment,
+      state.payment.toCheckoutParams(),
       email: state.contactEmail,
       contact: state.contactPhone,
     );

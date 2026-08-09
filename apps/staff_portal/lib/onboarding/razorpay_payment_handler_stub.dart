@@ -1,4 +1,4 @@
-import 'onboarding_repository.dart';
+import '../payments/razorpay_checkout_params.dart';
 
 /// Fallback when Razorpay is not available on the current platform.
 class RazorpayPaymentHandler {
@@ -22,7 +22,7 @@ class RazorpayPaymentHandler {
   void dispose() {}
 
   void open(
-    InitiatePaymentResponse payment, {
+    RazorpayCheckoutParams checkoutParams, {
     String? email,
     String? contact,
   }) {

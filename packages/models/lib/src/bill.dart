@@ -19,6 +19,22 @@ class _DoubleConverter implements JsonConverter<double, dynamic> {
   dynamic toJson(double value) => value;
 }
 
+/// Parses API values that may be sent as string or number into [String?].
+class _NullableStringConverter implements JsonConverter<String?, dynamic> {
+  const _NullableStringConverter();
+
+  @override
+  String? fromJson(dynamic json) {
+    if (json == null) return null;
+    if (json is String) return json;
+    if (json is num) return json.toString();
+    return json.toString();
+  }
+
+  @override
+  dynamic toJson(String? value) => value;
+}
+
 /// GST breakdown for a single tax slab on a [Bill].
 @freezed
 class GstSlab with _$GstSlab {
@@ -79,8 +95,19 @@ class Bill with _$Bill {
     /// Final total including GST.
     @_DoubleConverter() required double total,
 
-    /// Current bill status (e.g. "draft", "paid", "voided").
+    /// Current bill status (e.g. "open", "paid", "voided").
     required String status,
+
+    /// Human-readable bill number for receipts and payment descriptions.
+    @JsonKey(name: 'bill_number')
+    @_NullableStringConverter()
+    String? billNumber,
+
+    /// Razorpay order id set after payment initiation.
+    @JsonKey(name: 'razorpay_order_id') String? razorpayOrderId,
+
+    /// Razorpay payment id set after successful verification.
+    @JsonKey(name: 'razorpay_payment_id') String? razorpayPaymentId,
 
     /// Payments applied to this bill.
     @Default([]) List<Payment> payments,

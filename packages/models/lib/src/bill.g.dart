@@ -47,6 +47,10 @@ _$BillImpl _$$BillImplFromJson(Map<String, dynamic> json) => _$BillImpl(
           .toList(),
       total: const _DoubleConverter().fromJson(json['total']),
       status: json['status'] as String,
+      billNumber:
+          const _NullableStringConverter().fromJson(json['bill_number']),
+      razorpayOrderId: json['razorpay_order_id'] as String?,
+      razorpayPaymentId: json['razorpay_payment_id'] as String?,
       payments: (json['payments'] as List<dynamic>?)
               ?.map((e) => Payment.fromJson(e as Map<String, dynamic>))
               .toList() ??
@@ -61,5 +65,9 @@ Map<String, dynamic> _$$BillImplToJson(_$BillImpl instance) =>
       'gst_breakdown': instance.gstBreakdown.map((e) => e.toJson()).toList(),
       'total': const _DoubleConverter().toJson(instance.total),
       'status': instance.status,
+      'bill_number':
+          const _NullableStringConverter().toJson(instance.billNumber),
+      'razorpay_order_id': instance.razorpayOrderId,
+      'razorpay_payment_id': instance.razorpayPaymentId,
       'payments': instance.payments.map((e) => e.toJson()).toList(),
     };

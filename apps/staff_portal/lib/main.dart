@@ -78,18 +78,13 @@ class _StaffPortalAppState extends State<StaffPortalApp> {
 
     _authSubscription = _authBloc.stream.listen((state) {
       if (state is TenantAuthenticated) {
+        // Only check the restaurant in the tenant JWT — never scan all venues.
         _subscriptionGuardCubit.checkPendingPayment();
       } else if (state is BaseAuthenticated) {
+        // No restaurant selected yet — skip subscription checks.
         _subscriptionGuardCubit.markPaymentComplete();
       } else if (state is Unauthenticated) {
         _subscriptionGuardCubit.reset();
-      }
-    });
-
-    // Eager check on cold start when a valid tenant token is already stored.
-    _tokenRepository.getTenantToken().then((_) {
-      if (_tokenRepository.isTenantTokenValid()) {
-        _subscriptionGuardCubit.checkPendingPayment();
       }
     });
 
