@@ -9,6 +9,7 @@ import 'package:intl/intl.dart';
 import 'package:models/models.dart';
 import 'package:staff_portal/dashboard/dashboard_bloc.dart';
 import 'package:staff_portal/dashboard/dashboard_repository.dart';
+import 'package:staff_portal/navigation/role_navigation.dart';
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 
@@ -111,6 +112,13 @@ class _PageHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final dateStr = DateFormat('EEEE, d MMMM yyyy').format(DateTime.now());
+    final authState = context.watch<AuthBloc>().state;
+    final canSwitch = authState is TenantAuthenticated &&
+        canSwitchRestaurant(authState.role);
+    final headerInitials = authState is TenantAuthenticated
+        ? userInitials(authState.displayName)
+        : '?';
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
       child: Row(
@@ -133,24 +141,26 @@ class _PageHeader extends StatelessWidget {
           ),
           Row(
             children: [
-              OutlinedButton.icon(
-                onPressed: () => context
-                    .read<AuthBloc>()
-                    .add(const RestaurantSwitchRequested()),
-                icon: const Icon(Icons.storefront_outlined, size: 16),
-                label: const Text('Switch restaurant'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: _titleColor,
-                  side: const BorderSide(color: _cardBorder),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  textStyle: const TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w600,
+              if (canSwitch) ...[
+                OutlinedButton.icon(
+                  onPressed: () => context
+                      .read<AuthBloc>()
+                      .add(const RestaurantSwitchRequested()),
+                  icon: const Icon(Icons.storefront_outlined, size: 16),
+                  label: const Text('Switch restaurant'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: _titleColor,
+                    side: const BorderSide(color: _cardBorder),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    textStyle: const TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 8),
+                const SizedBox(width: 8),
+              ],
               _HeaderIconBtn(Icons.notifications_outlined),
               const SizedBox(width: 8),
               Container(
@@ -160,12 +170,14 @@ class _PageHeader extends StatelessWidget {
                   color: _accentOrange,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Center(
-                  child: Text('JW',
-                      style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700)),
+                child: Center(
+                  child: Text(
+                    headerInitials,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700),
+                  ),
                 ),
               ),
             ],

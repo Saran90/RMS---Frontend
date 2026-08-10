@@ -1,9 +1,7 @@
 // Staff login screen — used by Waiter, Billing, and Kitchen roles.
 //
-// Each role gets its own accent colour, icon, title, and button label.
-// Fields: Staff ID + PIN (not email/password).
-// Auth is still routed through the existing AuthBloc / LoginRequested event
-// so the backend integration is unchanged.
+// Staff sign in with username + password (email optional on backend for owners).
+// Auth is routed through AuthBloc / LoginRequested.
 
 import 'package:auth/auth.dart';
 import 'package:flutter/material.dart';
@@ -85,7 +83,7 @@ class StaffLoginScreen extends StatefulWidget {
 class _StaffLoginScreenState extends State<StaffLoginScreen> {
   // ── Sign In fields ───────────────────────────────────────────────────────────
   final _formKey = GlobalKey<FormState>();
-  final _emailController = TextEditingController();
+  final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
   bool _isSubmitting = false;
@@ -96,18 +94,16 @@ class _StaffLoginScreenState extends State<StaffLoginScreen> {
 
   @override
   void dispose() {
-    _emailController.dispose();
+    _usernameController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
 
   // ── Validators ──────────────────────────────────────────────────────────────
 
-  String? _validateEmail(String? v) {
-    if (v == null || v.trim().isEmpty) return 'Email is required';
-    if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(v.trim())) {
-      return 'Enter a valid email address';
-    }
+  String? _validateUsername(String? v) {
+    if (v == null || v.trim().isEmpty) return 'Username is required';
+    if (v.trim().length < 3) return 'Enter a valid username';
     return null;
   }
 
@@ -122,7 +118,7 @@ class _StaffLoginScreenState extends State<StaffLoginScreen> {
     setState(() => _errorMessage = null);
     if (!_formKey.currentState!.validate()) return;
     context.read<AuthBloc>().add(LoginRequested(
-          email: _emailController.text.trim(),
+          username: _usernameController.text.trim(),
           password: _passwordController.text,
         ));
   }
@@ -139,7 +135,7 @@ class _StaffLoginScreenState extends State<StaffLoginScreen> {
     }
     setState(() => _isSubmitting = false);
     if (state is AuthError) {
-      setState(() => _errorMessage = 'Invalid email or password');
+      setState(() => _errorMessage = 'Invalid username or password');
     }
   }
 
@@ -229,7 +225,7 @@ class _StaffLoginScreenState extends State<StaffLoginScreen> {
 
   Widget _buildBackLink() {
     return GestureDetector(
-      onTap: () => context.go(AppRoutes.landing),
+      onTap: () => context.go(AppRoutes.login),
       child: const Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -314,15 +310,14 @@ class _StaffLoginScreenState extends State<StaffLoginScreen> {
               const SizedBox(height: 16),
             ],
 
-            // Email field
-            _buildFieldLabel('Email Address'),
+            // Username field
+            _buildFieldLabel('Username'),
             const SizedBox(height: 6),
             _buildTextField(
-              controller: _emailController,
-              hint: 'your@email.com',
-              keyboardType: TextInputType.emailAddress,
+              controller: _usernameController,
+              hint: 'john.smith',
               textInputAction: TextInputAction.next,
-              validator: _validateEmail,
+              validator: _validateUsername,
             ),
             const SizedBox(height: 14),
 
@@ -478,7 +473,7 @@ class _StaffLoginScreenState extends State<StaffLoginScreen> {
   Widget _buildDemoHint() {
     return const Center(
       child: Text(
-        'Use your staff email and password',
+        'Use your staff username and password',
         style: TextStyle(color: _demoTextColor, fontSize: 12),
       ),
     );

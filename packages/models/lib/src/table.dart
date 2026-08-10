@@ -29,8 +29,11 @@ class Table with _$Table {
     // ── Reservation fields (populated when status == reserved) ────────────
     @JsonKey(name: 'reservation_name') String? reservationName,
     @JsonKey(name: 'reservation_phone') String? reservationPhone,
+    @JsonKey(name: 'party_size') int? partySize,
     @JsonKey(name: 'reserved_for') DateTime? reservedFor,
     @JsonKey(name: 'reserved_until') DateTime? reservedUntil,
+    /// Seating capacity of the table (from backend `capacity` column).
+    int? capacity,
   }) = _Table;
 
   factory Table.fromJson(Map<String, dynamic> json) => _$TableFromJson(json);

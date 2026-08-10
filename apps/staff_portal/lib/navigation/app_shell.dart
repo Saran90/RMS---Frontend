@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:staff_portal/connectivity/connectivity_cubit.dart';
 import 'package:staff_portal/navigation/nav_items.dart';
+import 'package:staff_portal/navigation/role_navigation.dart';
 
 // ── Design tokens (sidebar matches dashboard mockup) ──────────────────────────
 
@@ -131,15 +132,24 @@ class _Sidebar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Resolve display name and restaurant name from auth state
-    String userName = 'Owner';
-    String restaurantName = 'My Restaurant';
-    String planLabel = 'Professional Plan';
+    // Local copy so Dart can promote sealed subtypes on fields.
+    final state = authState;
+    String userName = 'User';
+    String roleSubtitle = '';
 
-    if (authState is TenantAuthenticated) {
-      final role = (authState as TenantAuthenticated).role;
-      userName = role.name[0].toUpperCase() + role.name.substring(1);
+    if (state is TenantAuthenticated) {
+      userName = state.displayName;
+      roleSubtitle = roleDisplayLabel(state.role);
+    } else if (state is BaseAuthenticated) {
+      userName = state.displayName;
     }
+
+    final canSwitch =
+        state is TenantAuthenticated && canSwitchRestaurant(state.role);
+
+    const restaurantName = 'My Restaurant';
+    const planLabel = 'Professional Plan';
+    final initials = userInitials(userName);
 
     return Container(
       width: 220,
@@ -249,7 +259,7 @@ class _Sidebar extends StatelessWidget {
                       radius: 15,
                       backgroundColor: _logoOrange,
                       child: Text(
-                        userName[0].toUpperCase(),
+                        initials,
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 12,
@@ -273,11 +283,13 @@ class _Sidebar extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                           ),
                           Text(
-                            userName,
+                            roleSubtitle.isNotEmpty ? roleSubtitle : userName,
                             style: const TextStyle(
                               color: _sidebarMuted,
                               fontSize: 10,
                             ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ],
                       ),
@@ -285,27 +297,28 @@ class _Sidebar extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 10),
-                GestureDetector(
-                  onTap: () => context
-                      .read<AuthBloc>()
-                      .add(const RestaurantSwitchRequested()),
-                  child: const Row(
-                    children: [
-                      Icon(Icons.storefront_outlined,
-                          size: 13, color: _signOutColor),
-                      SizedBox(width: 6),
-                      Text(
-                        'Switch restaurant',
-                        style: TextStyle(
-                          color: _signOutColor,
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w500,
+                if (canSwitch)
+                  GestureDetector(
+                    onTap: () => context
+                        .read<AuthBloc>()
+                        .add(const RestaurantSwitchRequested()),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.storefront_outlined,
+                            size: 13, color: _signOutColor),
+                        SizedBox(width: 6),
+                        Text(
+                          'Switch restaurant',
+                          style: TextStyle(
+                            color: _signOutColor,
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(height: 8),
+                if (canSwitch) const SizedBox(height: 8),
                 GestureDetector(
                   onTap: () =>
                       context.read<AuthBloc>().add(const LogoutRequested()),

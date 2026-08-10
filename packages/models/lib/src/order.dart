@@ -61,6 +61,13 @@ class OrderItem with _$OrderItem {
       _$OrderItemFromJson(json);
 }
 
+String? _tableNumberFromJson(dynamic json) {
+  if (json == null) return null;
+  if (json is String) return json;
+  if (json is num) return json.toString();
+  return json.toString();
+}
+
 /// An order placed by a customer or staff member.
 @freezed
 class Order with _$Order {
@@ -88,6 +95,10 @@ class Order with _$Order {
 
     /// Table reference; only present for [OrderType.dineIn] orders.
     @JsonKey(name: 'table_id') String? tableId,
+
+    /// Human-readable table number (e.g. "6"), joined from tables.
+    @JsonKey(name: 'table_number', fromJson: _tableNumberFromJson)
+    String? tableNumber,
 
     /// Customer name (delivery/takeaway orders).
     @JsonKey(name: 'customer_name') String? customerName,

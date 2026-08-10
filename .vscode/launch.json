@@ -45,7 +45,22 @@
             "name": "staff_portal",
             "cwd": "apps\\staff_portal",
             "request": "launch",
-            "type": "dart"
+            "type": "dart",
+            "args": [
+                "-d",
+                "chrome",
+                "--no-web-resources-cdn"
+            ]
+        },
+        {
+            "name": "staff_portal (Windows)",
+            "cwd": "apps\\staff_portal",
+            "request": "launch",
+            "type": "dart",
+            "args": [
+                "-d",
+                "windows"
+            ]
         },
         {
             "name": "staff_portal (profile mode)",

@@ -658,6 +658,10 @@ mixin _$Order {
   @JsonKey(name: 'table_id')
   String? get tableId => throw _privateConstructorUsedError;
 
+  /// Human-readable table number (e.g. "6"), joined from tables.
+  @JsonKey(name: 'table_number', fromJson: _tableNumberFromJson)
+  String? get tableNumber => throw _privateConstructorUsedError;
+
   /// Customer name (delivery/takeaway orders).
   @JsonKey(name: 'customer_name')
   String? get customerName => throw _privateConstructorUsedError;
@@ -696,6 +700,8 @@ abstract class $OrderCopyWith<$Res> {
       List<OrderItem> items,
       @JsonKey(name: 'subtotal') @_DoubleConverter() double subtotal,
       @JsonKey(name: 'table_id') String? tableId,
+      @JsonKey(name: 'table_number', fromJson: _tableNumberFromJson)
+      String? tableNumber,
       @JsonKey(name: 'customer_name') String? customerName,
       @JsonKey(name: 'customer_phone') String? customerPhone,
       @JsonKey(name: 'delivery_address') String? deliveryAddress,
@@ -724,6 +730,7 @@ class _$OrderCopyWithImpl<$Res, $Val extends Order>
     Object? items = null,
     Object? subtotal = null,
     Object? tableId = freezed,
+    Object? tableNumber = freezed,
     Object? customerName = freezed,
     Object? customerPhone = freezed,
     Object? deliveryAddress = freezed,
@@ -757,6 +764,10 @@ class _$OrderCopyWithImpl<$Res, $Val extends Order>
       tableId: freezed == tableId
           ? _value.tableId
           : tableId // ignore: cast_nullable_to_non_nullable
+              as String?,
+      tableNumber: freezed == tableNumber
+          ? _value.tableNumber
+          : tableNumber // ignore: cast_nullable_to_non_nullable
               as String?,
       customerName: freezed == customerName
           ? _value.customerName
@@ -793,6 +804,8 @@ abstract class _$$OrderImplCopyWith<$Res> implements $OrderCopyWith<$Res> {
       List<OrderItem> items,
       @JsonKey(name: 'subtotal') @_DoubleConverter() double subtotal,
       @JsonKey(name: 'table_id') String? tableId,
+      @JsonKey(name: 'table_number', fromJson: _tableNumberFromJson)
+      String? tableNumber,
       @JsonKey(name: 'customer_name') String? customerName,
       @JsonKey(name: 'customer_phone') String? customerPhone,
       @JsonKey(name: 'delivery_address') String? deliveryAddress,
@@ -819,6 +832,7 @@ class __$$OrderImplCopyWithImpl<$Res>
     Object? items = null,
     Object? subtotal = null,
     Object? tableId = freezed,
+    Object? tableNumber = freezed,
     Object? customerName = freezed,
     Object? customerPhone = freezed,
     Object? deliveryAddress = freezed,
@@ -853,6 +867,10 @@ class __$$OrderImplCopyWithImpl<$Res>
           ? _value.tableId
           : tableId // ignore: cast_nullable_to_non_nullable
               as String?,
+      tableNumber: freezed == tableNumber
+          ? _value.tableNumber
+          : tableNumber // ignore: cast_nullable_to_non_nullable
+              as String?,
       customerName: freezed == customerName
           ? _value.customerName
           : customerName // ignore: cast_nullable_to_non_nullable
@@ -884,6 +902,8 @@ class _$OrderImpl implements _Order {
       final List<OrderItem> items = const [],
       @JsonKey(name: 'subtotal') @_DoubleConverter() this.subtotal = 0.0,
       @JsonKey(name: 'table_id') this.tableId,
+      @JsonKey(name: 'table_number', fromJson: _tableNumberFromJson)
+      this.tableNumber,
       @JsonKey(name: 'customer_name') this.customerName,
       @JsonKey(name: 'customer_phone') this.customerPhone,
       @JsonKey(name: 'delivery_address') this.deliveryAddress,
@@ -934,6 +954,11 @@ class _$OrderImpl implements _Order {
   @JsonKey(name: 'table_id')
   final String? tableId;
 
+  /// Human-readable table number (e.g. "6"), joined from tables.
+  @override
+  @JsonKey(name: 'table_number', fromJson: _tableNumberFromJson)
+  final String? tableNumber;
+
   /// Customer name (delivery/takeaway orders).
   @override
   @JsonKey(name: 'customer_name')
@@ -956,7 +981,7 @@ class _$OrderImpl implements _Order {
 
   @override
   String toString() {
-    return 'Order(id: $id, orderType: $orderType, status: $status, createdAt: $createdAt, items: $items, subtotal: $subtotal, tableId: $tableId, customerName: $customerName, customerPhone: $customerPhone, deliveryAddress: $deliveryAddress, cancelReason: $cancelReason)';
+    return 'Order(id: $id, orderType: $orderType, status: $status, createdAt: $createdAt, items: $items, subtotal: $subtotal, tableId: $tableId, tableNumber: $tableNumber, customerName: $customerName, customerPhone: $customerPhone, deliveryAddress: $deliveryAddress, cancelReason: $cancelReason)';
   }
 
   @override
@@ -974,6 +999,8 @@ class _$OrderImpl implements _Order {
             (identical(other.subtotal, subtotal) ||
                 other.subtotal == subtotal) &&
             (identical(other.tableId, tableId) || other.tableId == tableId) &&
+            (identical(other.tableNumber, tableNumber) ||
+                other.tableNumber == tableNumber) &&
             (identical(other.customerName, customerName) ||
                 other.customerName == customerName) &&
             (identical(other.customerPhone, customerPhone) ||
@@ -995,6 +1022,7 @@ class _$OrderImpl implements _Order {
       const DeepCollectionEquality().hash(_items),
       subtotal,
       tableId,
+      tableNumber,
       customerName,
       customerPhone,
       deliveryAddress,
@@ -1025,6 +1053,8 @@ abstract class _Order implements Order {
           final List<OrderItem> items,
           @JsonKey(name: 'subtotal') @_DoubleConverter() final double subtotal,
           @JsonKey(name: 'table_id') final String? tableId,
+          @JsonKey(name: 'table_number', fromJson: _tableNumberFromJson)
+          final String? tableNumber,
           @JsonKey(name: 'customer_name') final String? customerName,
           @JsonKey(name: 'customer_phone') final String? customerPhone,
           @JsonKey(name: 'delivery_address') final String? deliveryAddress,
@@ -1065,6 +1095,11 @@ abstract class _Order implements Order {
   @override
   @JsonKey(name: 'table_id')
   String? get tableId;
+
+  /// Human-readable table number (e.g. "6"), joined from tables.
+  @override
+  @JsonKey(name: 'table_number', fromJson: _tableNumberFromJson)
+  String? get tableNumber;
 
   /// Customer name (delivery/takeaway orders).
   @override

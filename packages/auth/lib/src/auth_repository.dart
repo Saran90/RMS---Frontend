@@ -1,4 +1,5 @@
 import 'package:api_client/api_client.dart';
+import 'package:models/models.dart';
 
 /// Data class holding the tokens returned by login/refresh endpoints.
 class AuthTokens {
@@ -45,15 +46,23 @@ class AuthRepository {
 
   /// Calls `POST /api/v1/auth/login` and returns [AuthTokens].
   ///
-  /// Throws [ApiException] (status 401) on invalid credentials
-  /// (Requirement 2.2, 2.3).
+  /// Provide either [email] (owners) or [username] (staff). Password is always
+  /// required. Throws [ApiException] (status 401) on invalid credentials.
   Future<AuthTokens> login({
-    required String email,
+    String? email,
+    String? username,
     required String password,
   }) async {
+    final body = <String, dynamic>{'password': password};
+    if (email != null && email.trim().isNotEmpty) {
+      body['email'] = email.trim();
+    } else if (username != null && username.trim().isNotEmpty) {
+      body['username'] = username.trim();
+    }
+
     final raw = await _client.post<Map<String, dynamic>>(
       '/api/v1/auth/login',
-      body: {'email': email, 'password': password},
+      body: body,
     );
 
     // Support both flat   { access_token, refresh_token }
@@ -102,5 +111,39 @@ class AuthRepository {
     );
     // Support both jwt_token and access_token field names.
     return (data['jwt_token'] ?? data['access_token']) as String;
+  }
+
+  /// Lists restaurants accessible with the current Base_JWT.
+  Future<List<Restaurant>> getRestaurants() async {
+    final raw = await _client.get<dynamic>('/api/v1/restaurants');
+
+    List<dynamic> list;
+    if (raw is List) {
+      list = raw;
+    } else if (raw is Map<String, dynamic>) {
+      final inner = raw['restaurants'] ?? raw['data'] ?? raw['items'] ?? [];
+      list = inner is List ? inner : [];
+    } else {
+      list = [];
+    }
+
+    return list
+        .map((e) => _parseRestaurant(e as Map<String, dynamic>))
+        .whereType<Restaurant>()
+        .toList();
+  }
+
+  Restaurant? _parseRestaurant(Map<String, dynamic> m) {
+    final id = (m['restaurant_id'] ?? m['id'] ?? '') as String;
+    if (id.isEmpty) return null;
+    return Restaurant(
+      id: id,
+      name: (m['restaurant_name'] ?? m['name'] ?? '') as String,
+      address: (m['address'] ?? '') as String,
+      phone: (m['contact_phone'] ?? m['phone'] ?? m['phone_number'] ?? '')
+          as String,
+      gstNumber: (m['gst_number'] ?? m['gst'] ?? m['gstin'] ?? '') as String,
+      logoUrl: m['logo_url'] as String?,
+    );
   }
 }

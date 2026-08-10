@@ -12,6 +12,8 @@ _$KdsOrderImpl _$$KdsOrderImplFromJson(Map<String, dynamic> json) =>
       orderType: $enumDecode(_$OrderTypeEnumMap, json['order_type']),
       orderStatus: $enumDecode(_$OrderStatusEnumMap, json['order_status']),
       tableId: json['table_id'] as String?,
+      tableNumber: (json['table_number'] as num?)?.toInt(),
+      sectionLabel: json['section_label'] as String?,
       orderCreatedAt: DateTime.parse(json['order_created_at'] as String),
       items: (json['items'] as List<dynamic>?)
               ?.map((e) => KdsItem.fromJson(e as Map<String, dynamic>))
@@ -25,6 +27,8 @@ Map<String, dynamic> _$$KdsOrderImplToJson(_$KdsOrderImpl instance) =>
       'order_type': _$OrderTypeEnumMap[instance.orderType]!,
       'order_status': _$OrderStatusEnumMap[instance.orderStatus]!,
       'table_id': instance.tableId,
+      'table_number': instance.tableNumber,
+      'section_label': instance.sectionLabel,
       'order_created_at': instance.orderCreatedAt.toIso8601String(),
       'items': instance.items.map((e) => e.toJson()).toList(),
     };

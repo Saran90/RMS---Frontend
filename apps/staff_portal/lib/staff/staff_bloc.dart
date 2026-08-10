@@ -13,9 +13,22 @@ final class StaffListRequested extends StaffEvent {
   const StaffListRequested();
 }
 
-final class StaffInviteRequested extends StaffEvent {
-  const StaffInviteRequested({required this.email, required this.role});
-  final String email, role;
+final class StaffCreateRequested extends StaffEvent {
+  const StaffCreateRequested({
+    required this.fullName,
+    required this.phoneNumber,
+    required this.username,
+    required this.role,
+    this.email,
+    this.password,
+  });
+
+  final String fullName;
+  final String phoneNumber;
+  final String username;
+  final String role;
+  final String? email;
+  final String? password;
 }
 
 final class StaffRoleUpdateRequested extends StaffEvent {
@@ -60,9 +73,17 @@ final class StaffLoaded extends StaffState {
   final List<Staff> staff;
 }
 
-final class StaffInviteSent extends StaffState {
-  const StaffInviteSent({required this.staff});
+/// Emitted after owner creates a staff member with login credentials.
+final class StaffCreated extends StaffState {
+  const StaffCreated({
+    required this.staff,
+    required this.createdMember,
+    required this.loginPassword,
+  });
+
   final List<Staff> staff;
+  final Staff createdMember;
+  final String loginPassword;
 }
 
 final class StaffError extends StaffState {
@@ -87,7 +108,7 @@ class StaffBloc extends Bloc<StaffEvent, StaffState> {
       : _repo = repository,
         super(const StaffInitial()) {
     on<StaffListRequested>(_onList);
-    on<StaffInviteRequested>(_onInvite);
+    on<StaffCreateRequested>(_onCreate);
     on<StaffRoleUpdateRequested>(_onRoleUpdate);
     on<StaffDeactivateRequested>(_onDeactivate);
     on<StaffShiftsRequested>(_onShifts);
@@ -96,6 +117,8 @@ class StaffBloc extends Bloc<StaffEvent, StaffState> {
   }
   final StaffRepository _repo;
   List<Staff> _currentStaff = [];
+
+  static const defaultStaffPassword = 'Staff@1234';
 
   Future<void> _onList(StaffListRequested e, Emitter<StaffState> emit) async {
     emit(const StaffLoading());
@@ -110,11 +133,28 @@ class StaffBloc extends Bloc<StaffEvent, StaffState> {
     }
   }
 
-  Future<void> _onInvite(
-      StaffInviteRequested e, Emitter<StaffState> emit) async {
+  Future<void> _onCreate(
+      StaffCreateRequested e, Emitter<StaffState> emit) async {
     try {
-      await _repo.inviteStaff(email: e.email, role: e.role);
-      emit(StaffInviteSent(staff: _currentStaff));
+      final passwordUsed =
+          (e.password != null && e.password!.isNotEmpty)
+              ? e.password!
+              : defaultStaffPassword;
+      final created = await _repo.createStaff(
+        fullName: e.fullName,
+        phoneNumber: e.phoneNumber,
+        username: e.username,
+        role: e.role,
+        email: e.email,
+        password: e.password,
+      );
+      final s = await _repo.getStaff();
+      _currentStaff = s;
+      emit(StaffCreated(
+        staff: _currentStaff,
+        createdMember: created,
+        loginPassword: passwordUsed,
+      ));
     } on ApiException catch (ex) {
       emit(StaffOperationError(staff: _currentStaff, message: ex.message));
     } catch (ex) {

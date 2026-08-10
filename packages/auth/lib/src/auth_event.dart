@@ -20,9 +20,17 @@ final class AppStarted extends AuthEvent {
 /// On success the Base_JWT is stored and [BaseAuthenticated] is emitted
 /// (Requirement 2.2).
 final class LoginRequested extends AuthEvent {
-  const LoginRequested({required this.email, required this.password});
+  const LoginRequested({
+    this.email,
+    this.username,
+    required this.password,
+  });
 
-  final String email;
+  /// Owner login — provide email.
+  final String? email;
+
+  /// Staff login — provide username.
+  final String? username;
   final String password;
 }
 

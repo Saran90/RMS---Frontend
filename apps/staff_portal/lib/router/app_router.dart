@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:auth/auth.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Table;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:models/models.dart';
@@ -9,8 +9,6 @@ import 'package:staff_portal/billing/billing_screen.dart';
 import 'package:staff_portal/navigation/app_shell.dart';
 import 'package:staff_portal/screens/auth/change_password_screen.dart';
 import 'package:staff_portal/screens/auth/login_screen.dart';
-import 'package:staff_portal/screens/auth/staff_login_screen.dart';
-import 'package:staff_portal/screens/landing/landing_screen.dart';
 import 'package:staff_portal/screens/auth/register_screen.dart';
 import 'package:staff_portal/screens/dashboard/dashboard_screen.dart';
 import 'package:staff_portal/screens/menu/menu_screen.dart';
@@ -23,7 +21,9 @@ import 'package:staff_portal/screens/orders/orders_screen.dart';
 import 'package:staff_portal/screens/kds/kds_screen.dart';
 import 'package:staff_portal/screens/restaurant_selector/restaurant_selector_screen.dart';
 import 'package:staff_portal/screens/inventory/inventory_screen.dart';
+import 'package:staff_portal/screens/profile/profile_screen.dart';
 import 'package:staff_portal/screens/settings/settings_screen.dart';
+import 'package:staff_portal/navigation/role_navigation.dart';
 import 'package:staff_portal/screens/staff/staff_screen.dart';
 import 'package:staff_portal/screens/subscription/subscription_payment_screen.dart';
 import 'package:staff_portal/screens/support/support_screen.dart';
@@ -37,8 +37,7 @@ import 'package:staff_portal/tables/tables_screen.dart';
 // ---------------------------------------------------------------------------
 
 abstract final class AppRoutes {
-  static const landing = '/';
-  static const login = '/login';
+  static const login = '/';
   static const loginWaiter = '/login/waiter';
   static const loginBilling = '/login/billing';
   static const loginKitchen = '/login/kitchen';
@@ -61,6 +60,7 @@ abstract final class AppRoutes {
   static const inventory = '/inventory';
   static const reports = '/reports';
   static const settings = '/settings';
+  static const profile = '/profile';
   static const changePassword = '/change-password';
 }
 
@@ -84,6 +84,7 @@ const Map<StaffRole, Set<String>> _rolePermissions = {
     AppRoutes.inventory,
     AppRoutes.reports,
     AppRoutes.settings,
+    AppRoutes.profile,
   },
   StaffRole.manager: {
     AppRoutes.dashboard,
@@ -99,27 +100,32 @@ const Map<StaffRole, Set<String>> _rolePermissions = {
     AppRoutes.staff,
     AppRoutes.inventory,
     AppRoutes.reports,
+    AppRoutes.profile,
   },
   StaffRole.waiter: {
-    AppRoutes.dashboard,
     AppRoutes.orders,
     AppRoutes.orderDetail,
     AppRoutes.orderCreate,
     AppRoutes.tables,
     AppRoutes.reservations,
+    AppRoutes.profile,
   },
-  StaffRole.chef: {AppRoutes.dashboard, AppRoutes.kds},
+  StaffRole.chef: {
+    AppRoutes.kds,
+    AppRoutes.profile,
+  },
   StaffRole.cashier: {
-    AppRoutes.dashboard,
     AppRoutes.orders,
     AppRoutes.orderDetail,
     AppRoutes.billing,
     AppRoutes.billingDetail,
+    AppRoutes.profile,
   },
   StaffRole.deliveryStaff: {
     AppRoutes.dashboard,
     AppRoutes.orders,
     AppRoutes.orderDetail,
+    AppRoutes.profile,
   },
 };
 
@@ -184,7 +190,7 @@ class AppRouter {
 
   late final GoRouter router = GoRouter(
     navigatorKey: navigatorKey,
-    initialLocation: AppRoutes.landing,
+    initialLocation: AppRoutes.login,
     refreshListenable: CombinedRefreshListenable([
       _authBloc.stream,
       _subscriptionGuard.stream,
@@ -198,24 +204,24 @@ class AppRouter {
   static final List<RouteBase> _routes = [
     // ── Public routes (no shell) ──────────────────────────────────────────
     GoRoute(
-      path: AppRoutes.landing,
-      builder: (_, __) => const LandingScreen(),
-    ),
-    GoRoute(
       path: AppRoutes.login,
       builder: (_, __) => const LoginScreen(),
     ),
     GoRoute(
+      path: '/login',
+      redirect: (_, __) => AppRoutes.login,
+    ),
+    GoRoute(
       path: AppRoutes.loginWaiter,
-      builder: (_, __) => const StaffLoginScreen(role: 'waiter'),
+      redirect: (_, __) => AppRoutes.login,
     ),
     GoRoute(
       path: AppRoutes.loginBilling,
-      builder: (_, __) => const StaffLoginScreen(role: 'billing'),
+      redirect: (_, __) => AppRoutes.login,
     ),
     GoRoute(
       path: AppRoutes.loginKitchen,
-      builder: (_, __) => const StaffLoginScreen(role: 'kitchen'),
+      redirect: (_, __) => AppRoutes.login,
     ),
     GoRoute(
       path: AppRoutes.register,
@@ -276,7 +282,9 @@ class AppRouter {
           routes: [
             GoRoute(
               path: 'create',
-              builder: (_, __) => const CreateOrderScreen(),
+              builder: (_, state) => CreateOrderScreen(
+                initialTable: state.extra as Table?,
+              ),
             ),
             GoRoute(
               path: ':id',
@@ -317,6 +325,10 @@ class AppRouter {
           path: AppRoutes.settings,
           builder: (_, __) => const SettingsScreen(),
         ),
+        GoRoute(
+          path: AppRoutes.profile,
+          builder: (_, __) => const ProfileScreen(),
+        ),
       ],
     ),
   ];
@@ -330,8 +342,8 @@ class AppRouter {
 
     // Public routes that are always accessible
     const publicRoutes = {
-      AppRoutes.landing,
       AppRoutes.login,
+      '/login',
       AppRoutes.loginWaiter,
       AppRoutes.loginBilling,
       AppRoutes.loginKitchen,
@@ -374,9 +386,9 @@ class AppRouter {
       }
     }
 
-    // Unauthenticated → landing (or stay on public routes)
+    // Unauthenticated → login (or stay on public routes)
     if (authState is Unauthenticated || authState is AuthError) {
-      return publicRoutes.contains(location) ? null : AppRoutes.landing;
+      return publicRoutes.contains(location) ? null : AppRoutes.login;
     }
 
     // Has only Base_JWT → restaurant selector (onboarding/support while switching)
@@ -390,11 +402,12 @@ class AppRouter {
       return AppRoutes.restaurantSelector;
     }
 
-    // Fully authenticated with Tenant_JWT — skip landing/login/selector
+    // Fully authenticated with Tenant_JWT — skip login/selector
     if (authState is TenantAuthenticated) {
+      final home = homeRouteForRole(authState.role);
       if (publicRoutes.contains(location) ||
           location == AppRoutes.restaurantSelector) {
-        return AppRoutes.dashboard;
+        return home;
       }
 
       // Check role permission for restricted routes
@@ -403,7 +416,7 @@ class AppRouter {
       final templateLocation = _normalizeLocation(location);
       if (!permittedRoutes.contains(templateLocation) &&
           !_isPublicOrSystemRoute(templateLocation)) {
-        return AppRoutes.dashboard;
+        return home;
       }
 
       return null;
@@ -429,14 +442,15 @@ class AppRouter {
   }
 
   static bool _isPublicOrSystemRoute(String location) {
-    return location == AppRoutes.landing ||
-        location == AppRoutes.login ||
+    return location == AppRoutes.login ||
+        location == '/login' ||
         location == AppRoutes.register ||
         location == AppRoutes.restaurantSelector ||
         location == AppRoutes.onboarding ||
         location == AppRoutes.subscriptionPayment ||
         location == AppRoutes.support ||
         location == AppRoutes.dashboard ||
+        location == AppRoutes.profile ||
         location == AppRoutes.changePassword;
   }
 }

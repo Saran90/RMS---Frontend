@@ -51,17 +51,44 @@ class StaffRepository {
   const StaffRepository({required ApiClient apiClient}) : _client = apiClient;
   final ApiClient _client;
 
-  Future<List<Staff>> getStaff() async {
-    final data =
-        await _client.get<Map<String, dynamic>>('/api/v1/tenant/staff');
+  Future<List<Staff>> getStaff({int page = 1, int limit = 100}) async {
+    final data = await _client.get<Map<String, dynamic>>(
+      '/api/v1/tenant/staff',
+      queryParams: {'page': page, 'limit': limit},
+    );
     final staff = data['staff'] as List<dynamic>? ?? [];
-    return staff.map((e) => Staff.fromJson(e as Map<String, dynamic>)).toList();
+    return staff
+        .map((e) => Staff.fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 
-  Future<void> inviteStaff(
-      {required String email, required String role}) async {
-    await _client.post<dynamic>('/api/v1/tenant/staff/invite',
-        body: {'email': email, 'role': role});
+  Future<Staff> getStaffById(String id) async {
+    final data =
+        await _client.get<Map<String, dynamic>>('/api/v1/tenant/staff/$id');
+    return Staff.fromJson(data);
+  }
+
+  Future<Staff> createStaff({
+    required String fullName,
+    required String phoneNumber,
+    required String username,
+    required String role,
+    String? email,
+    String? password,
+  }) async {
+    final body = <String, dynamic>{
+      'full_name': fullName,
+      'phone_number': phoneNumber,
+      'username': username,
+      'role': role,
+      if (email != null && email.trim().isNotEmpty) 'email': email.trim(),
+      if (password != null && password.isNotEmpty) 'password': password,
+    };
+    final data = await _client.post<Map<String, dynamic>>(
+      '/api/v1/tenant/staff',
+      body: body,
+    );
+    return Staff.fromJson(data);
   }
 
   Future<Staff> updateStaffRole(String id, String role) async {
@@ -77,9 +104,22 @@ class StaffRepository {
     return Staff.fromJson(data);
   }
 
-  Future<List<StaffShift>> getShifts() async {
-    final data =
-        await _client.get<Map<String, dynamic>>('/api/v1/tenant/staff/shifts');
+  Future<List<StaffShift>> getShifts({
+    String? staffId,
+    String? shiftDate,
+    int page = 1,
+    int limit = 100,
+  }) async {
+    final query = <String, dynamic>{
+      'page': page,
+      'limit': limit,
+      if (staffId != null) 'staff_id': staffId,
+      if (shiftDate != null) 'shift_date': shiftDate,
+    };
+    final data = await _client.get<Map<String, dynamic>>(
+      '/api/v1/tenant/staff/shifts',
+      queryParams: query,
+    );
     final shifts = data['shifts'] as List<dynamic>? ?? [];
     return shifts
         .map((e) => StaffShift.fromJson(e as Map<String, dynamic>))
@@ -91,7 +131,6 @@ class StaffRepository {
     final id = payload['id'] as String?;
 
     if (isUpdate && id != null) {
-      // Remove id from payload for PATCH request
       final updatePayload = Map<String, dynamic>.from(payload)..remove('id');
       final data = await _client.patch<Map<String, dynamic>>(
         '/api/v1/tenant/staff/shifts/$id',
@@ -99,7 +138,6 @@ class StaffRepository {
       );
       return StaffShift.fromJson(data);
     } else {
-      // Create new shift
       final data = await _client.post<Map<String, dynamic>>(
         '/api/v1/tenant/staff/shifts',
         body: payload,

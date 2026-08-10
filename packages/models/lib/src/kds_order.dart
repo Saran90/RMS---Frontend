@@ -21,6 +21,12 @@ class KdsOrder with _$KdsOrder {
     /// Table ID (for dine-in orders)
     @JsonKey(name: 'table_id') String? tableId,
 
+    /// Human-readable table number (dine-in)
+    @JsonKey(name: 'table_number') int? tableNumber,
+
+    /// Floor section for the table (dine-in)
+    @JsonKey(name: 'section_label') String? sectionLabel,
+
     /// When the order was created
     @JsonKey(name: 'order_created_at') required DateTime orderCreatedAt,
 

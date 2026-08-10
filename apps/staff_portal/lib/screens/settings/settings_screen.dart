@@ -686,7 +686,7 @@ class _ManagerManagementSection extends StatelessWidget {
                       child: CircularProgressIndicator(),
                     ),
                   StaffLoaded(:final staff) ||
-                  StaffInviteSent(:final staff) =>
+                  StaffCreated(:final staff) =>
                     _StaffList(staff: staff, isSaving: isSaving),
                   StaffOperationError(:final staff, :final message) => Column(
                       children: [
@@ -738,7 +738,11 @@ class _StaffList extends StatelessWidget {
         return ListTile(
           contentPadding: EdgeInsets.zero,
           title: Text(member.name),
-          subtitle: Text(member.email),
+          subtitle: Text(
+            member.email != null && member.email!.isNotEmpty
+                ? member.email!
+                : member.username,
+          ),
           trailing: isManager
               ? Chip(
                   label: const Text('Manager'),

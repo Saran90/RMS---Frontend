@@ -113,7 +113,7 @@ class _StaffPortalAppState extends State<StaffPortalApp> {
         }
 
         const routes = <String, String>{
-          'login': '/login',
+          'login': AppRoutes.login,
           'payment': '/subscription/payment',
           'billing': '/billing',
           'support': '/support',

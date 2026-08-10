@@ -22,12 +22,16 @@ class MockFlutterSecureStorage extends Mock implements FlutterSecureStorage {}
 // JWT helpers
 // ---------------------------------------------------------------------------
 
-String _buildJwt({required int expOffsetSeconds, String role = 'owner'}) {
+String _buildJwt({
+  required int expOffsetSeconds,
+  String role = 'owner',
+  String fullName = 'Test User',
+}) {
   final header = base64Url.encode(utf8.encode('{"alg":"HS256","typ":"JWT"}'));
   final nowEpoch = DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000;
   final payload = base64Url.encode(
     utf8.encode(
-      '{"sub":"1","exp":${nowEpoch + expOffsetSeconds},"role":"$role"}',
+      '{"sub":"1","exp":${nowEpoch + expOffsetSeconds},"role":"$role","full_name":"$fullName"}',
     ),
   );
   return '$header.$payload.fakesig';
@@ -75,6 +79,26 @@ void main() {
     ).thenAnswer((_) async {});
     when(() => mockStorage.delete(key: any(named: 'key')))
         .thenAnswer((_) async {});
+
+    // Default: multiple restaurants → show selector after login.
+    when(() => mockRepo.getRestaurants()).thenAnswer(
+      (_) async => [
+        const Restaurant(
+          id: 'rest_1',
+          name: 'Restaurant One',
+          address: '',
+          phone: '',
+          gstNumber: '',
+        ),
+        const Restaurant(
+          id: 'rest_2',
+          name: 'Restaurant Two',
+          address: '',
+          phone: '',
+          gstNumber: '',
+        ),
+      ],
+    );
   });
 
   // -------------------------------------------------------------------------
@@ -115,7 +139,7 @@ void main() {
       act: (bloc) => bloc.add(const AppStarted()),
       expect: () => const [
         AuthLoading(),
-        TenantAuthenticated(role: StaffRole.owner),
+        TenantAuthenticated(role: StaffRole.owner, displayName: 'Test User'),
       ],
     );
 
@@ -140,12 +164,56 @@ void main() {
 
   group('LoginRequested', () {
     blocTest<AuthBloc, AuthState>(
+      'emits [AuthLoading, TenantAuthenticated(waiter)] when login finds one restaurant',
+      build: buildBloc,
+      setUp: () {
+        when(
+          () => mockRepo.login(
+            email: null,
+            username: 'waiter1',
+            password: 'password123',
+          ),
+        ).thenAnswer(
+          (_) async => const AuthTokens(
+            accessToken: 'base_tok',
+            refreshToken: 'refresh_tok',
+          ),
+        );
+        when(() => mockRepo.getRestaurants()).thenAnswer(
+          (_) async => [
+            const Restaurant(
+              id: 'rest_1',
+              name: 'Single Venue',
+              address: '',
+              phone: '',
+              gstNumber: '',
+            ),
+          ],
+        );
+        when(
+          () => mockRepo.selectRestaurant(restaurantId: 'rest_1'),
+        ).thenAnswer((_) async => _buildJwt(expOffsetSeconds: 3600, role: 'waiter'));
+      },
+      act: (bloc) => bloc.add(
+        const LoginRequested(username: 'waiter1', password: 'password123'),
+      ),
+      expect: () => [
+        const AuthLoading(),
+        const TenantAuthenticated(
+          role: StaffRole.waiter,
+          displayName: 'Test User',
+        ),
+      ],
+    );
+
+    blocTest<AuthBloc, AuthState>(
       'emits [AuthLoading, BaseAuthenticated] on successful login',
       build: buildBloc,
       setUp: () {
         when(
           () => mockRepo.login(
             email: 'user@test.com',
+            username: null,
             password: 'password123',
           ),
         ).thenAnswer(
@@ -168,6 +236,7 @@ void main() {
         when(
           () => mockRepo.login(
             email: any(named: 'email'),
+            username: any(named: 'username'),
             password: any(named: 'password'),
           ),
         ).thenThrow(
@@ -272,7 +341,7 @@ void main() {
         ),
         expect: () => [
           const AuthLoading(),
-          TenantAuthenticated(role: role),
+          TenantAuthenticated(role: role, displayName: 'Test User'),
         ],
       );
     }

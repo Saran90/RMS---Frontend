@@ -1,15 +1,20 @@
 ﻿// Feature: rms-flutter-frontend
 // Implements: Requirements 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 8.7
 
+import 'dart:async';
+
 import 'package:core_ui/core_ui.dart';
 import 'package:flutter/material.dart' hide Table;
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:models/models.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:staff_portal/orders/order_repository.dart';
 import 'package:staff_portal/reservation/reservation_bloc.dart';
 import 'package:staff_portal/reservation/reservation_repository.dart';
+import 'package:staff_portal/reservation/table_reservation_deriver.dart';
 import 'package:staff_portal/tables/table_bloc.dart';
 import 'package:staff_portal/tables/table_repository.dart';
 
@@ -21,6 +26,7 @@ const _kAvailable = Color(0xFF00BFA5);
 const _kOccupied = Color(0xFFF5A623);
 const _kReserved = Color(0xFF00B4D8);
 const _kCleaning = Color(0xFF9CA3AF);
+const _kUpcoming = Color(0xFF8B5CF6);
 
 Color _statusColor(TableStatus s) => switch (s) {
       TableStatus.available => _kAvailable,
@@ -35,6 +41,41 @@ String _statusLabel(TableStatus s) => switch (s) {
       TableStatus.reserved => 'Reserved',
       TableStatus.cleaning => 'Cleaning',
     };
+
+bool _hasReservationMetadata(Table table) =>
+    table.reservedFor != null ||
+    (table.reservationName != null && table.reservationName!.trim().isNotEmpty);
+
+bool _isUpcomingTableReservation(Table table) {
+  if (table.reservedFor == null) return false;
+  return table.status == TableStatus.available &&
+      table.reservedFor!.isAfter(DateTime.now());
+}
+
+bool _needsCleaningAfterReservation(Table table) =>
+    isExpiredTableReservation(table) && table.currentOrderId == null;
+
+String _tableCardStatusLabel(Table table) {
+  if (_isUpcomingTableReservation(table)) return 'Upcoming';
+  if (_needsCleaningAfterReservation(table)) return 'Cleaning';
+  if (isActiveTableReservation(table) ||
+      (table.status == TableStatus.occupied &&
+          _hasReservationMetadata(table))) {
+    return 'Occupied';
+  }
+  return _statusLabel(table.status);
+}
+
+Color _tableCardStatusColor(Table table) {
+  if (_isUpcomingTableReservation(table)) return _kUpcoming;
+  if (_needsCleaningAfterReservation(table)) return _kCleaning;
+  if (isActiveTableReservation(table) ||
+      (table.status == TableStatus.occupied &&
+          _hasReservationMetadata(table))) {
+    return _kOccupied;
+  }
+  return _statusColor(table.status);
+}
 
 const _kDefaultSectionLabel = 'General';
 
@@ -105,8 +146,33 @@ class TablesScreen extends StatelessWidget {
   }
 }
 
-class _TablesView extends StatelessWidget {
+class _TablesView extends StatefulWidget {
   const _TablesView();
+
+  @override
+  State<_TablesView> createState() => _TablesViewState();
+}
+
+class _TablesViewState extends State<_TablesView> {
+  Timer? _refreshTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (!mounted) return;
+      context.read<TableBloc>().add(const TablesLoadRequested());
+      context
+          .read<ReservationBloc>()
+          .add(const ReservationsRefreshRequested());
+    });
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -382,9 +448,11 @@ class _TableCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = _statusColor(table.status);
+    final color = _tableCardStatusColor(table);
+    final statusLabel = _tableCardStatusLabel(table);
+    final guestHint = table.reservationName?.trim();
     return Semantics(
-      label: 'Table ${table.tableNumber}, ${_statusLabel(table.status)}',
+      label: 'Table ${table.tableNumber}, $statusLabel',
       button: true,
       child: GestureDetector(
         onTap: () => _showTableSheet(context, table),
@@ -410,11 +478,28 @@ class _TableCard extends StatelessWidget {
                   decoration:
                       BoxDecoration(color: color, shape: BoxShape.circle)),
               const SizedBox(height: 5),
-              Text(_statusLabel(table.status),
+              Text(statusLabel,
                   style: const TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w500,
                       color: AppTheme.mutedText)),
+              if (guestHint != null && guestHint.isNotEmpty) ...[
+                const SizedBox(height: 2),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  child: Text(
+                    guestHint,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: color.withValues(alpha: 0.9),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
               if (table.currentOrderId != null) ...[
                 const SizedBox(height: 2),
                 Padding(
@@ -471,9 +556,7 @@ void _showTableSheet(BuildContext context, Table table) {
   showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
-    backgroundColor: AppTheme.cardSurface,
-    shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+    backgroundColor: Colors.transparent,
     builder: (_) => BlocProvider.value(
       value: context.read<TableBloc>(),
       child: _TableBottomSheet(table: table),
@@ -481,182 +564,184 @@ void _showTableSheet(BuildContext context, Table table) {
   );
 }
 
-class _TableBottomSheet extends StatelessWidget {
+class _TableBottomSheet extends StatefulWidget {
   const _TableBottomSheet({required this.table});
   final Table table;
 
   @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(
-          bottom: MediaQuery.viewInsetsOf(context).bottom + AppTheme.spacing24,
-          top: AppTheme.spacing16,
-          left: AppTheme.spacing24,
-          right: AppTheme.spacing24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Center(
-              child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                      color: AppTheme.border,
-                      borderRadius: BorderRadius.circular(2)))),
-          const SizedBox(height: AppTheme.spacing16),
-          Row(children: [
-            Text('Table ${table.tableNumber}',
-                style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(width: AppTheme.spacing12),
-            _StatusChip(status: table.status),
-          ]),
-          if (table.sectionLabel != null &&
-              table.sectionLabel!.trim().isNotEmpty) ...[
-            const SizedBox(height: AppTheme.spacing8),
-            Row(children: [
-              const Icon(Icons.grid_view_outlined,
-                  size: 16, color: AppTheme.mutedText),
-              const SizedBox(width: AppTheme.spacing4),
-              Text('Section: ${table.sectionLabel!.trim()}',
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodySmall
-                      ?.copyWith(color: AppTheme.mutedText)),
-            ]),
-          ],
-          if (table.currentOrderId != null) ...[
-            const SizedBox(height: AppTheme.spacing8),
-            Row(children: [
-              const Icon(Icons.receipt_outlined,
-                  size: 16, color: AppTheme.mutedText),
-              const SizedBox(width: AppTheme.spacing4),
-              Text('Order: ${table.currentOrderId}',
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodySmall
-                      ?.copyWith(color: AppTheme.mutedText)),
-            ]),
-          ],
-          const SizedBox(height: AppTheme.spacing24),
-          ..._transitions(table.status).map((t) => Padding(
-                padding: const EdgeInsets.only(bottom: AppTheme.spacing8),
-                child: SizedBox(
-                    height: 48,
-                    child: FilledButton.tonal(
-                      onPressed: () {
-                        if (t.status == TableStatus.reserved) {
-                          // Capture the bloc before popping the sheet so
-                          // we don't read from a deactivated context.
-                          final bloc = context.read<TableBloc>();
-                          Navigator.of(context).pop();
-                          showModalBottomSheet<void>(
-                            context: context,
-                            isScrollControlled: true,
-                            backgroundColor: AppTheme.cardSurface,
-                            shape: const RoundedRectangleBorder(
-                                borderRadius: BorderRadius.vertical(
-                                    top: Radius.circular(20))),
-                            builder: (_) => BlocProvider.value(
-                              value: bloc,
-                              child: _ReservationSheet(tableId: table.id),
-                            ),
-                          );
-                        } else {
-                          context.read<TableBloc>().add(
-                              TableStatusUpdateRequested(
-                                  id: table.id, status: t.status));
-                          Navigator.of(context).pop();
-                        }
-                      },
-                      child: Text(t.label),
-                    )),
-              )),
-          const SizedBox(height: AppTheme.spacing8),
-          OutlinedButton.icon(
-            onPressed: () => showDialog<void>(
-                context: context, builder: (_) => _QrCodeDialog(table: table)),
-            icon: const Icon(Icons.qr_code_outlined),
-            label: const Text('View QR Code'),
+  State<_TableBottomSheet> createState() => _TableBottomSheetState();
+}
+
+class _TableBottomSheetState extends State<_TableBottomSheet> {
+  Order? _linkedOrder;
+  bool _loadingOrder = false;
+
+  Table get table => widget.table;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLinkedOrder();
+  }
+
+  Future<void> _loadLinkedOrder() async {
+    final orderId = table.currentOrderId;
+    if (orderId == null) return;
+    setState(() => _loadingOrder = true);
+    try {
+      final order = await context.read<OrderRepository>().getOrder(orderId);
+      if (!mounted) return;
+      setState(() {
+        _linkedOrder = order;
+        _loadingOrder = false;
+      });
+      if (order.status == OrderStatus.completed ||
+          order.status == OrderStatus.cancelled) {
+        context.read<TableBloc>().add(const TablesLoadRequested());
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _loadingOrder = false);
+    }
+  }
+
+  /// True while the linked order is still open (not completed/cancelled).
+  bool _hasOpenOrder() {
+    final orderId = table.currentOrderId;
+    if (orderId == null) return false;
+    if (_loadingOrder) return false;
+    if (_linkedOrder == null) return false;
+    return _linkedOrder!.status != OrderStatus.completed &&
+        _linkedOrder!.status != OrderStatus.cancelled;
+  }
+
+  bool _canMarkCleaning() {
+    if (table.status != TableStatus.occupied) return false;
+    if (_needsCleaningAfterReservation(table)) return true;
+    if (table.currentOrderId == null) return true;
+    if (_loadingOrder) return false;
+    if (_linkedOrder == null) return true;
+    return _linkedOrder!.status == OrderStatus.completed ||
+        _linkedOrder!.status == OrderStatus.cancelled;
+  }
+
+  void _openReservationSheet(BuildContext context, {bool editing = false}) {
+    final bloc = context.read<TableBloc>();
+    Navigator.of(context).pop();
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppTheme.cardSurface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => BlocProvider.value(
+        value: bloc,
+        child: _ReservationSheet(
+          tableId: table.id,
+          existingName: editing ? table.reservationName : null,
+          existingPhone: editing ? table.reservationPhone : null,
+          existingFrom: editing ? table.reservedFor : null,
+          existingUntil: editing ? table.reservedUntil : null,
+        ),
+      ),
+    );
+  }
+
+  void _confirmReleaseReservation(BuildContext context) {
+    final guest = table.reservationName?.trim();
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Cancel reservation?'),
+        content: Text(
+          guest != null && guest.isNotEmpty
+              ? 'Cancel the reservation for $guest on table ${table.tableNumber}?'
+              : 'Cancel this reservation on table ${table.tableNumber}?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Keep'),
           ),
-          // Edit Reservation — only shown when table is currently reserved
-          if (table.status == TableStatus.reserved) ...[
-            const SizedBox(height: AppTheme.spacing8),
-            OutlinedButton.icon(
-              onPressed: () {
-                // Capture the bloc before popping so the new sheet can
-                // access it without touching a deactivated context.
-                final bloc = context.read<TableBloc>();
-                Navigator.of(context).pop();
-                showModalBottomSheet<void>(
-                  context: context,
-                  isScrollControlled: true,
-                  backgroundColor: AppTheme.cardSurface,
-                  shape: const RoundedRectangleBorder(
-                      borderRadius:
-                          BorderRadius.vertical(top: Radius.circular(20))),
-                  builder: (_) => BlocProvider.value(
-                    value: bloc,
-                    child: _ReservationSheet(
-                      tableId: table.id,
-                      existingName: table.reservationName,
-                      existingPhone: table.reservationPhone,
-                      existingFrom: table.reservedFor,
-                      existingUntil: table.reservedUntil,
-                    ),
-                  ),
-                );
-              },
-              icon: const Icon(Icons.edit_calendar_outlined),
-              label: const Text('Edit Reservation'),
-            ),
-          ],
-          const SizedBox(height: AppTheme.spacing8),
-          OutlinedButton.icon(
+          TextButton(
+            style: TextButton.styleFrom(foregroundColor: const Color(0xFFEF4444)),
             onPressed: () {
-              // Capture the bloc before popping so the new sheet can
-              // access it without touching a deactivated context.
-              final bloc = context.read<TableBloc>();
+              Navigator.of(ctx).pop();
               Navigator.of(context).pop();
-              showModalBottomSheet<void>(
-                context: context,
-                isScrollControlled: true,
-                backgroundColor: AppTheme.cardSurface,
-                shape: const RoundedRectangleBorder(
-                    borderRadius:
-                        BorderRadius.vertical(top: Radius.circular(20))),
-                builder: (_) => BlocProvider.value(
-                  value: bloc,
-                  child: _EditTableSheet(table: table),
-                ),
-              );
+              context.read<TableBloc>().add(
+                    TableReservationReleaseRequested(tableId: table.id),
+                  );
+              context
+                  .read<ReservationBloc>()
+                  .add(const ReservationsRefreshRequested());
             },
-            icon: const Icon(Icons.edit_outlined),
-            label: const Text('Edit Table'),
-          ),
-          const SizedBox(height: AppTheme.spacing8),
-          OutlinedButton.icon(
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppTheme.error,
-              side: const BorderSide(color: AppTheme.error),
-            ),
-            onPressed: () => _confirmDelete(context, table),
-            icon: const Icon(Icons.delete_outline),
-            label: const Text('Delete Table'),
+            child: const Text('Cancel Reservation'),
           ),
         ],
       ),
     );
   }
 
-  void _confirmDelete(BuildContext context, Table table) {
+  void _openEditSheet(BuildContext context) {
+    final bloc = context.read<TableBloc>();
+    Navigator.of(context).pop();
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppTheme.cardSurface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => BlocProvider.value(
+        value: bloc,
+        child: _EditTableSheet(table: table),
+      ),
+    );
+  }
+
+  void _applyStatus(BuildContext context, TableStatus status) {
+    if (status == TableStatus.reserved) {
+      _openReservationSheet(context);
+      return;
+    }
+    final bloc = context.read<TableBloc>();
+    final loaded = bloc.state;
+    Table? current;
+    if (loaded is TableLoaded) {
+      current = loaded.tables.where((t) => t.id == table.id).firstOrNull;
+    }
+    final effective = current ?? table;
+
+    if (status == TableStatus.available) {
+      if (_hasReservationMetadata(effective)) {
+        Navigator.of(context).pop();
+        bloc.add(TableReservationReleaseRequested(tableId: table.id));
+        context
+            .read<ReservationBloc>()
+            .add(const ReservationsRefreshRequested());
+        return;
+      }
+      if (effective.status == TableStatus.available) {
+        Navigator.of(context).pop();
+        bloc.add(const TablesLoadRequested());
+        return;
+      }
+    }
+
+    bloc.add(TableStatusUpdateRequested(id: table.id, status: status));
+    Navigator.of(context).pop();
+  }
+
+  void _confirmDelete(BuildContext context) {
     showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Delete Table'),
-        content:
-            Text('Delete Table ${table.tableNumber}? This cannot be undone.\n\n'
-                'Note: tables with active orders cannot be deleted.'),
+        content: Text(
+          'Delete Table ${table.tableNumber}? This cannot be undone.\n\n'
+          'Note: tables with active orders cannot be deleted.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
@@ -667,9 +752,7 @@ class _TableBottomSheet extends StatelessWidget {
             onPressed: () {
               Navigator.of(ctx).pop();
               Navigator.of(context).pop();
-              context.read<TableBloc>().add(
-                    TableDeleteRequested(id: table.id),
-                  );
+              context.read<TableBloc>().add(TableDeleteRequested(id: table.id));
             },
             child: const Text('Delete'),
           ),
@@ -678,24 +761,784 @@ class _TableBottomSheet extends StatelessWidget {
     );
   }
 
-  List<({String label, TableStatus status})> _transitions(TableStatus s) =>
-      switch (s) {
+  @override
+  Widget build(BuildContext context) {
+    final statusColor = _statusColor(table.status);
+    final transitions = _transitions(table);
+    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+    final maxHeight = MediaQuery.sizeOf(context).height * 0.92;
+
+    return Align(
+      alignment: Alignment.bottomCenter,
+      child: Container(
+        width: double.infinity,
+        constraints: BoxConstraints(maxHeight: maxHeight),
+        decoration: const BoxDecoration(
+          color: _kCardBg,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          boxShadow: [
+            BoxShadow(
+              color: Color(0x1A000000),
+              blurRadius: 24,
+              offset: Offset(0, -4),
+            ),
+          ],
+        ),
+        child: SingleChildScrollView(
+          padding: EdgeInsets.only(bottom: bottomInset + 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const SizedBox(height: 10),
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppTheme.border,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              // ── Status-tinted header ─────────────────────────────────────
+              Container(
+                width: double.infinity,
+                margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      statusColor.withValues(alpha: 0.14),
+                      statusColor.withValues(alpha: 0.04),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                  border:
+                      Border.all(color: statusColor.withValues(alpha: 0.35)),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 56,
+                      height: 56,
+                      decoration: BoxDecoration(
+                        color: statusColor.withValues(alpha: 0.18),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Center(
+                        child: Text(
+                          table.tableNumber,
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                            color: statusColor,
+                            height: 1,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Table',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              color: AppTheme.mutedText,
+                            ),
+                          ),
+                          Text(
+                            table.tableNumber,
+                            style: const TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w800,
+                              color: AppTheme.onSurface,
+                              height: 1.1,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          _StatusChip(status: table.status),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Close',
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.close, size: 22),
+                      color: AppTheme.mutedText,
+                      style: IconButton.styleFrom(
+                        backgroundColor: Colors.white.withValues(alpha: 0.7),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // ── Meta info ──────────────────────────────────────────
+                    if (table.sectionLabel != null &&
+                        table.sectionLabel!.trim().isNotEmpty)
+                      _TableSheetMetaTile(
+                        icon: Icons.grid_view_rounded,
+                        label: 'Section',
+                        value: table.sectionLabel!.trim(),
+                      ),
+                    if (_hasReservationMetadata(table))
+                      _TableReservationBanner(table: table),
+                    if (_hasOpenOrder() && table.currentOrderId != null)
+                      _TableActiveOrderBanner(
+                        orderId: table.currentOrderId!,
+                        onTap: () {
+                          Navigator.of(context).pop();
+                          context.push('/orders/${table.currentOrderId}');
+                        },
+                      ),
+                    if (_loadingOrder && table.currentOrderId != null)
+                      const Padding(
+                        padding: EdgeInsets.only(bottom: 8),
+                        child: Center(
+                          child: SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        ),
+                      ),
+                    if (table.status == TableStatus.occupied && _hasOpenOrder())
+                      const _TableSheetHint(
+                        icon: Icons.info_outline,
+                        message:
+                            'Mark the order complete or cancelled — the table will move to cleaning automatically.',
+                      ),
+
+                    // ── Primary action ─────────────────────────────────────
+                    if (_primaryAction(table) != null) ...[
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        height: 48,
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          onPressed: () => _onPrimaryAction(context),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: AppTheme.primary,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          icon: Icon(_primaryAction(table)!.icon, size: 20),
+                          label: Text(
+                            _primaryAction(table)!.label,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 15,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+
+                    // ── Status transitions ─────────────────────────────────
+                    if (transitions.isNotEmpty) ...[
+                      const SizedBox(height: 20),
+                      const Text(
+                        'Change status',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: AppTheme.onSurface,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      LayoutBuilder(
+                        builder: (context, constraints) {
+                          final tileWidth = (constraints.maxWidth - 10) / 2;
+                          return Wrap(
+                            spacing: 10,
+                            runSpacing: 10,
+                            children: transitions.map((t) {
+                              final color = _statusColor(t.status);
+                              return SizedBox(
+                                width: tileWidth,
+                                child: _TableStatusActionTile(
+                                  label: t.label,
+                                  icon: t.icon,
+                                  color: color,
+                                  onTap: () => _applyStatus(context, t.status),
+                                ),
+                              );
+                            }).toList(),
+                          );
+                        },
+                      ),
+                    ],
+
+                    if (_hasReservationMetadata(table)) ...[
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () => _confirmReleaseReservation(context),
+                          icon: const Icon(Icons.cancel_outlined),
+                          label: const Text('Cancel Reservation'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFFEF4444),
+                            side: const BorderSide(
+                              color: Color(0xFFEF4444),
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                        ),
+                      ),
+                    ],
+
+                    // ── More actions ───────────────────────────────────────
+                    const SizedBox(height: 20),
+                    const Text(
+                      'More',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: AppTheme.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _TableSheetUtilityButton(
+                            icon: Icons.qr_code_2_rounded,
+                            label: 'QR Code',
+                            onTap: () => showDialog<void>(
+                              context: context,
+                              builder: (_) => _QrCodeDialog(table: table),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _TableSheetUtilityButton(
+                            icon: Icons.edit_outlined,
+                            label: 'Edit',
+                            onTap: () => _openEditSheet(context),
+                          ),
+                        ),
+                        if (_hasReservationMetadata(table)) ...[
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: _TableSheetUtilityButton(
+                              icon: Icons.edit_calendar_outlined,
+                              label: 'Reservation',
+                              onTap: () =>
+                                  _openReservationSheet(context, editing: true),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    TextButton.icon(
+                      onPressed: () => _confirmDelete(context),
+                      icon: const Icon(Icons.delete_outline, size: 18),
+                      label: const Text('Delete table'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: AppTheme.error,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _onPrimaryAction(BuildContext context) {
+    final action = _primaryAction(table);
+    if (action == null) return;
+
+    switch (action.kind) {
+      case _PrimaryActionKind.startOrder:
+        Navigator.of(context).pop();
+        context.push('/orders/create', extra: table);
+      case _PrimaryActionKind.viewOrder:
+        Navigator.of(context).pop();
+        context.push('/orders/${table.currentOrderId}');
+      case _PrimaryActionKind.seatGuests:
+        _applyStatus(context, TableStatus.occupied);
+      case _PrimaryActionKind.markAvailable:
+        _applyStatus(context, TableStatus.available);
+      case _PrimaryActionKind.markCleaning:
+        _applyStatus(context, TableStatus.cleaning);
+    }
+  }
+
+  _PrimaryAction? _primaryAction(Table table) {
+    if (table.status == TableStatus.available) {
+      return const _PrimaryAction(
+        kind: _PrimaryActionKind.startOrder,
+        label: 'Start Order',
+        icon: Icons.add_shopping_cart_outlined,
+      );
+    }
+    if (table.status == TableStatus.occupied &&
+        _needsCleaningAfterReservation(table)) {
+      return const _PrimaryAction(
+        kind: _PrimaryActionKind.markCleaning,
+        label: 'Mark for Cleaning',
+        icon: Icons.cleaning_services_outlined,
+      );
+    }
+    if (table.status == TableStatus.occupied &&
+        _hasOpenOrder() &&
+        table.currentOrderId != null) {
+      return const _PrimaryAction(
+        kind: _PrimaryActionKind.viewOrder,
+        label: 'View Order',
+        icon: Icons.receipt_long_outlined,
+      );
+    }
+    if (table.status == TableStatus.occupied &&
+        table.currentOrderId == null &&
+        _hasReservationMetadata(table)) {
+      return const _PrimaryAction(
+        kind: _PrimaryActionKind.startOrder,
+        label: 'Start Order',
+        icon: Icons.add_shopping_cart_outlined,
+      );
+    }
+    if (table.status == TableStatus.occupied && _canMarkCleaning()) {
+      return const _PrimaryAction(
+        kind: _PrimaryActionKind.markCleaning,
+        label: 'Mark for Cleaning',
+        icon: Icons.cleaning_services_outlined,
+      );
+    }
+    if (table.status == TableStatus.reserved) {
+      return const _PrimaryAction(
+        kind: _PrimaryActionKind.seatGuests,
+        label: 'Seat Guests',
+        icon: Icons.restaurant_outlined,
+      );
+    }
+    if (table.status == TableStatus.cleaning) {
+      return const _PrimaryAction(
+        kind: _PrimaryActionKind.markAvailable,
+        label: 'Mark Available',
+        icon: Icons.check_circle_outline,
+      );
+    }
+    return null;
+  }
+
+  List<({String label, TableStatus status, IconData icon})> _transitions(
+    Table table,
+  ) =>
+      switch (table.status) {
         TableStatus.available => [
-            (label: 'Mark Occupied', status: TableStatus.occupied),
-            (label: 'Mark Reserved', status: TableStatus.reserved),
+            (
+              label: 'Mark Occupied',
+              status: TableStatus.occupied,
+              icon: Icons.restaurant_outlined,
+            ),
+            (
+              label: 'Mark Reserved',
+              status: TableStatus.reserved,
+              icon: Icons.event_outlined,
+            ),
           ],
         TableStatus.occupied => [
-            (label: 'Mark Cleaning', status: TableStatus.cleaning),
-            (label: 'Mark Available', status: TableStatus.available),
+            if (_canMarkCleaning())
+              (
+                label: 'Needs Cleaning',
+                status: TableStatus.cleaning,
+                icon: Icons.cleaning_services_outlined,
+              ),
           ],
         TableStatus.reserved => [
-            (label: 'Mark Available', status: TableStatus.available),
-            (label: 'Mark Occupied', status: TableStatus.occupied),
+            (
+              label: 'Mark Available',
+              status: TableStatus.available,
+              icon: Icons.event_available_outlined,
+            ),
+            (
+              label: 'Mark Occupied',
+              status: TableStatus.occupied,
+              icon: Icons.restaurant_outlined,
+            ),
           ],
         TableStatus.cleaning => [
-            (label: 'Mark Available', status: TableStatus.available),
+            (
+              label: 'Mark Available',
+              status: TableStatus.available,
+              icon: Icons.check_circle_outline,
+            ),
           ],
       };
+}
+
+enum _PrimaryActionKind {
+  startOrder,
+  viewOrder,
+  seatGuests,
+  markAvailable,
+  markCleaning,
+}
+
+class _PrimaryAction {
+  const _PrimaryAction({
+    required this.kind,
+    required this.label,
+    required this.icon,
+  });
+  final _PrimaryActionKind kind;
+  final String label;
+  final IconData icon;
+}
+
+class _TableSheetHint extends StatelessWidget {
+  const _TableSheetHint({required this.icon, required this.message});
+
+  final IconData icon;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF0F9FF),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFBAE6FD)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: const Color(0xFF0284C7)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message,
+              style: const TextStyle(fontSize: 12, color: Color(0xFF0369A1)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TableSheetMetaTile extends StatelessWidget {
+  const _TableSheetMetaTile({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: _kPageBg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppTheme.border),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: AppTheme.mutedText),
+          const SizedBox(width: 10),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 13, color: AppTheme.mutedText),
+          ),
+          const Spacer(),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: AppTheme.onSurface,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TableReservationBanner extends StatelessWidget {
+  const _TableReservationBanner({required this.table});
+  final Table table;
+
+  @override
+  Widget build(BuildContext context) {
+    final fmt = DateFormat('EEE d MMM • h:mm a');
+    final isUpcoming = _isUpcomingTableReservation(table);
+    final isActive = isActiveTableReservation(table);
+    final isExpired = _needsCleaningAfterReservation(table);
+    final accent = isUpcoming
+        ? _kUpcoming
+        : (isExpired ? _kCleaning : (isActive ? _kOccupied : _kReserved));
+    final guestName = table.reservationName?.trim();
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: accent.withValues(alpha: 0.35)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            isUpcoming
+                ? 'Upcoming reservation'
+                : (isExpired
+                    ? 'Reservation ended — needs cleaning'
+                    : 'Active reservation'),
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: accent,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Icon(Icons.person_outline, size: 16, color: accent),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  guestName != null && guestName.isNotEmpty
+                      ? guestName
+                      : 'Guest',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: accent,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (table.reservationPhone != null) ...[
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                const Icon(Icons.phone_outlined,
+                    size: 14, color: AppTheme.mutedText),
+                const SizedBox(width: 6),
+                Text(
+                  table.reservationPhone!,
+                  style: const TextStyle(fontSize: 12, color: AppTheme.mutedText),
+                ),
+              ],
+            ),
+          ],
+          if (table.reservedFor != null) ...[
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                const Icon(Icons.schedule, size: 14, color: AppTheme.mutedText),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    '${fmt.format(table.reservedFor!)}'
+                    '${table.reservedUntil != null ? ' – ${fmt.format(table.reservedUntil!)}' : ''}',
+                    style: const TextStyle(fontSize: 12, color: AppTheme.mutedText),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _TableActiveOrderBanner extends StatelessWidget {
+  const _TableActiveOrderBanner({
+    required this.orderId,
+    required this.onTap,
+  });
+
+  final String orderId;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final shortId = orderId.length > 8
+        ? orderId.substring(0, 8).toUpperCase()
+        : orderId.toUpperCase();
+    return Material(
+      color: _kOccupied.withValues(alpha: 0.08),
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: _kOccupied.withValues(alpha: 0.35)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: _kOccupied.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.receipt_long_outlined,
+                    size: 18, color: _kOccupied),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Active order',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: AppTheme.mutedText,
+                      ),
+                    ),
+                    Text(
+                      '#$shortId',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: _kOccupied,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right, color: _kOccupied, size: 22),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TableStatusActionTile extends StatelessWidget {
+  const _TableStatusActionTile({
+    required this.label,
+    required this.icon,
+    required this.color,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: color.withValues(alpha: 0.06),
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: color.withValues(alpha: 0.3)),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, size: 20, color: color),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.onSurface,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TableSheetUtilityButton extends StatelessWidget {
+  const _TableSheetUtilityButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: _kPageBg,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppTheme.border),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 22, color: AppTheme.primary),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.onSurface,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _QrCodeDialog extends StatelessWidget {

@@ -14,6 +14,7 @@ import 'package:staff_portal/menu/menu_category_bloc.dart';
 import 'package:staff_portal/menu/menu_repository.dart';
 import 'package:staff_portal/orders/order_bloc.dart';
 import 'package:staff_portal/orders/order_design.dart';
+import 'package:staff_portal/reservation/reservation_repository.dart';
 import 'package:staff_portal/tables/table_bloc.dart';
 import 'package:staff_portal/tables/table_repository.dart';
 
@@ -34,7 +35,10 @@ class _CartItem {
 /// Screen for creating a new order.
 /// Requirements: 9.5, 9.6, 9.10
 class CreateOrderScreen extends StatelessWidget {
-  const CreateOrderScreen({super.key});
+  const CreateOrderScreen({this.initialTable, super.key});
+
+  /// When opened from the tables screen, the dine-in table is pre-selected.
+  final Table? initialTable;
 
   @override
   Widget build(BuildContext context) {
@@ -45,15 +49,17 @@ class CreateOrderScreen extends StatelessWidget {
           create: (ctx) => OrderBloc(repository: ctx.read()),
         ),
         BlocProvider<TableBloc>(
-          create: (ctx) => TableBloc(repository: ctx.read<TableRepository>())
-            ..add(const TablesLoadRequested()),
+          create: (ctx) => TableBloc(
+            repository: ctx.read<TableRepository>(),
+            reservationRepository: ctx.read<ReservationRepository>(),
+          )..add(const TablesLoadRequested()),
         ),
         BlocProvider<MenuCategoryBloc>(
           create: (_) => MenuCategoryBloc(repository: menuRepo)
             ..add(const MenuCategoriesLoadRequested()),
         ),
       ],
-      child: const _CreateOrderView(),
+      child: _CreateOrderView(initialTable: initialTable),
     );
   }
 }
@@ -63,15 +69,29 @@ class CreateOrderScreen extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _CreateOrderView extends StatefulWidget {
-  const _CreateOrderView();
+  const _CreateOrderView({this.initialTable});
+  final Table? initialTable;
+
   @override
   State<_CreateOrderView> createState() => _CreateOrderViewState();
 }
 
 class _CreateOrderViewState extends State<_CreateOrderView> {
   final _formKey = GlobalKey<FormState>();
-  OrderType? _orderType;
-  Table? _selectedTable;
+  late OrderType? _orderType;
+  late Table? _selectedTable;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialTable != null) {
+      _orderType = OrderType.dineIn;
+      _selectedTable = widget.initialTable;
+    } else {
+      _orderType = null;
+      _selectedTable = null;
+    }
+  }
   String? _errorMessage;
   bool _submitting = false;
 
@@ -158,7 +178,18 @@ class _CreateOrderViewState extends State<_CreateOrderView> {
 
   @override
   Widget build(BuildContext context) {
-    return BlocListener<OrderBloc, OrderState>(
+    return BlocListener<TableBloc, TableState>(
+      listenWhen: (_, state) => state is TableLoaded && _selectedTable != null,
+      listener: (context, state) {
+        if (state is! TableLoaded || _selectedTable == null) return;
+        final match = state.tables
+            .where((t) => t.id == _selectedTable!.id)
+            .firstOrNull;
+        if (match != null && match != _selectedTable) {
+          setState(() => _selectedTable = match);
+        }
+      },
+      child: BlocListener<OrderBloc, OrderState>(
       listener: (context, state) {
         if (state is OrderCreated) {
           context.go('/orders/${state.order.id}');
@@ -349,6 +380,7 @@ class _CreateOrderViewState extends State<_CreateOrderView> {
             ],
           ),
         ),
+      ),
       ),
     );
   }
@@ -1134,6 +1166,12 @@ class _PickerItemTile extends StatelessWidget {
 // Table dropdown
 // ─────────────────────────────────────────────────────────────────────────────
 
+bool _isTableSelectableForOrder(Table table) {
+  return table.status == TableStatus.available ||
+      table.status == TableStatus.reserved ||
+      (table.status == TableStatus.occupied && table.currentOrderId == null);
+}
+
 class _TableDropdown extends StatelessWidget {
   const _TableDropdown({
     required this.selectedTable,
@@ -1180,12 +1218,25 @@ class _TableDropdown extends StatelessWidget {
           TableOperationError(:final tables) => tables,
           _ => <Table>[],
         };
-        final sorted = [...tables]..sort((a, b) {
-            final aAvail = a.status == TableStatus.available ? 0 : 1;
-            final bAvail = b.status == TableStatus.available ? 0 : 1;
-            if (aAvail != bAvail) return aAvail - bAvail;
+
+        // Dedupe by id and ensure the pre-selected table is always in the list.
+        final byId = <String, Table>{for (final t in tables) t.id: t};
+        if (selectedTable != null) {
+          byId.putIfAbsent(selectedTable!.id, () => selectedTable!);
+        }
+
+        final sorted = byId.values.toList()
+          ..sort((a, b) {
+            final aSel = _isTableSelectableForOrder(a) ? 0 : 1;
+            final bSel = _isTableSelectableForOrder(b) ? 0 : 1;
+            if (aSel != bSel) return aSel - bSel;
             return a.tableNumber.compareTo(b.tableNumber);
           });
+
+        final effectiveValue = selectedTable != null
+            ? byId[selectedTable!.id]
+            : null;
+
         return DropdownButtonFormField<Table>(
           decoration: InputDecoration(
             labelText: 'Table *',
@@ -1206,11 +1257,11 @@ class _TableDropdown extends StatelessWidget {
             ),
           ),
           dropdownColor: orderCard,
-          value: selectedTable,
+          value: effectiveValue,
           hint: const Text('Select a table', style: TextStyle(color: orderMuted)),
           isExpanded: true,
           items: sorted.map((table) {
-            final available = table.status == TableStatus.available;
+            final selectable = _isTableSelectableForOrder(table);
             final suffix = switch (table.status) {
               TableStatus.available => '',
               TableStatus.occupied => ' (Occupied)',
@@ -1219,11 +1270,11 @@ class _TableDropdown extends StatelessWidget {
             };
             return DropdownMenuItem<Table>(
               value: table,
-              enabled: available,
+              enabled: selectable,
               child: Text(
                 'Table ${table.tableNumber}$suffix',
                 style: TextStyle(
-                  color: available ? orderTitle : orderMuted,
+                  color: selectable ? orderTitle : orderMuted,
                   fontSize: 13,
                 ),
               ),

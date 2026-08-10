@@ -57,7 +57,12 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         // restaurant yet — e.g. they closed the app mid-flow).
         final baseToken = await _tokenRepo.getBaseToken();
         if (baseToken != null) {
-          emit(const BaseAuthenticated());
+          final autoSelected = await _tryAutoSelectSingleRestaurant(emit);
+          if (!autoSelected) {
+            emit(BaseAuthenticated(
+              displayName: _displayNameFromToken(baseToken),
+            ));
+          }
         } else {
           emit(const Unauthenticated());
         }
@@ -81,15 +86,18 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     try {
       final result = await _authRepo.login(
         email: event.email,
+        username: event.username,
         password: event.password,
       );
       await _tokenRepo.saveRefreshToken(result.refreshToken);
-
-      // Always require restaurant selection after login — store the access
-      // token as a Base_JWT and emit BaseAuthenticated. The GoRouter guard
-      // will redirect to /restaurant-selector.
       await _tokenRepo.saveBaseToken(result.accessToken);
-      emit(const BaseAuthenticated());
+
+      final autoSelected = await _tryAutoSelectSingleRestaurant(emit);
+      if (!autoSelected) {
+        emit(BaseAuthenticated(
+          displayName: _displayNameFromToken(result.accessToken),
+        ));
+      }
     } on ApiException catch (e) {
       emit(AuthError(message: e.message));
     } catch (e) {
@@ -159,8 +167,12 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     RestaurantSwitchRequested event,
     Emitter<AuthState> emit,
   ) async {
+    final baseToken = await _tokenRepo.getBaseToken();
     await _tokenRepo.clearTenantToken();
-    emit(const BaseAuthenticated());
+    emit(BaseAuthenticated(
+      displayName:
+          baseToken != null ? _displayNameFromToken(baseToken) : 'User',
+    ));
   }
 
   /// Clears all stored tokens and emits [Unauthenticated].
@@ -189,7 +201,11 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         currentPassword: event.currentPassword,
         newPassword: event.newPassword,
       );
-      emit(const BaseAuthenticated());
+      final baseToken = await _tokenRepo.getBaseToken();
+      emit(BaseAuthenticated(
+        displayName:
+            baseToken != null ? _displayNameFromToken(baseToken) : 'User',
+      ));
     } on ApiException catch (e) {
       emit(AuthError(message: e.message));
     } catch (e) {
@@ -200,6 +216,33 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   // ---------------------------------------------------------------------------
   // Helpers
   // ---------------------------------------------------------------------------
+
+  /// When the account has exactly one restaurant, select it immediately so
+  /// staff never flash the restaurant picker (e.g. waiters with one venue).
+  ///
+  /// Returns `true` when tenant auth was emitted; `false` to show the selector.
+  Future<bool> _tryAutoSelectSingleRestaurant(Emitter<AuthState> emit) async {
+    try {
+      final restaurants = await _authRepo.getRestaurants();
+      if (restaurants.length != 1) return false;
+
+      final tenantToken = await _authRepo.selectRestaurant(
+        restaurantId: restaurants.first.id,
+      );
+      await _tokenRepo.saveTenantToken(tenantToken);
+      emit(_resolveRoleState(tenantToken));
+      return true;
+    } on ApiException {
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  String _displayNameFromToken(String token) {
+    final name = SecureTokenRepository.extractFullName(token)?.trim();
+    return (name != null && name.isNotEmpty) ? name : 'User';
+  }
 
   /// Decodes the [StaffRole] from the Tenant_JWT `role` claim and returns the
   /// appropriate [AuthState].
@@ -223,6 +266,9 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
             'Please contact your administrator.',
       );
     }
-    return TenantAuthenticated(role: role);
+    final fullName = SecureTokenRepository.extractFullName(tenantToken)?.trim();
+    final displayName =
+        (fullName != null && fullName.isNotEmpty) ? fullName : roleString;
+    return TenantAuthenticated(role: role, displayName: displayName);
   }
 }

@@ -74,6 +74,11 @@ final class TablesBulkCreateRequested extends TableEvent {
   final int startingNumber;
 }
 
+final class TableReservationReleaseRequested extends TableEvent {
+  const TableReservationReleaseRequested({required this.tableId});
+  final String tableId;
+}
+
 // ── States ────────────────────────────────────────────────────────────────────
 sealed class TableState {
   const TableState();
@@ -118,6 +123,7 @@ class TableBloc extends Bloc<TableEvent, TableState> {
     on<TableEditRequested>(_onEdit);
     on<TableDeleteRequested>(_onDelete);
     on<TableStatusUpdateRequested>(_onStatusUpdate);
+    on<TableReservationReleaseRequested>(_onReleaseReservation);
     on<TablesBulkCreateRequested>(_onBulkCreate);
   }
   final TableRepository _repo;
@@ -145,9 +151,12 @@ class TableBloc extends Bloc<TableEvent, TableState> {
     if (repo == null) return tables;
     try {
       final reservations = await repo.getReservations();
+      final activeReservations = reservations
+          .where((r) => r.reservedUntil.isAfter(DateTime.now()))
+          .toList();
       return deriveTableReservationState(
-        tables: tables,
-        reservations: reservations,
+        tables: reconcileExpiredTableReservations(tables),
+        reservations: activeReservations,
       );
     } catch (_) {
       // Reservation backend may be down — never fail the table load
@@ -167,7 +176,7 @@ class TableBloc extends Bloc<TableEvent, TableState> {
         sectionLabel: e.sectionLabel,
         qrCodeUrl: e.qrCodeUrl,
       );
-      emit(TableLoaded(tables: await _repo.getTables()));
+      emit(TableLoaded(tables: await _mergeActiveReservations(await _repo.getTables())));
     } on ApiException catch (ex) {
       emit(TableOperationError(tables: current, message: ex.message));
     } catch (ex) {
@@ -221,7 +230,33 @@ class TableBloc extends Bloc<TableEvent, TableState> {
         reservation: e.reservation,
       );
       final newList = current.map((t) => t.id == e.id ? updated : t).toList();
-      emit(TableLoaded(tables: newList));
+      final merged = await _mergeActiveReservations(newList);
+      emit(TableLoaded(tables: merged));
+    } on ApiException catch (ex) {
+      emit(TableOperationError(tables: current, message: ex.message));
+    } catch (ex) {
+      emit(TableOperationError(tables: current, message: ex.toString()));
+    }
+  }
+
+  Future<void> _onReleaseReservation(
+    TableReservationReleaseRequested e,
+    Emitter<TableState> emit,
+  ) async {
+    final current =
+        state is TableLoaded ? (state as TableLoaded).tables : <Table>[];
+    final repo = _reservationRepo;
+    if (repo == null) {
+      emit(TableOperationError(
+        tables: current,
+        message: 'Reservation service unavailable',
+      ));
+      return;
+    }
+    try {
+      await repo.releaseReservation(e.tableId);
+      final tables = await _repo.getTables();
+      emit(TableLoaded(tables: await _mergeActiveReservations(tables)));
     } on ApiException catch (ex) {
       emit(TableOperationError(tables: current, message: ex.message));
     } catch (ex) {

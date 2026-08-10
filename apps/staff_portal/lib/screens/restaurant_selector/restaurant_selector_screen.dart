@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:models/models.dart';
+import 'package:staff_portal/navigation/role_navigation.dart';
 import 'package:staff_portal/restaurant_selector/restaurant_bloc.dart'
     hide RestaurantSelected;
 import 'package:staff_portal/restaurant_selector/restaurant_repository.dart';
@@ -57,6 +58,19 @@ class _RestaurantSelectorView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocListener<RestaurantBloc, RestaurantState>(
+      listenWhen: (_, state) => state is RestaurantLoaded,
+      listener: (context, state) {
+        if (state is RestaurantLoaded && state.restaurants.length == 1) {
+          final id = state.restaurants.first.id;
+          context
+              .read<AuthBloc>()
+              .add(RestaurantSelected(restaurantId: id));
+          context
+              .read<RestaurantBloc>()
+              .add(RestaurantItemSelected(restaurantId: id));
+        }
+      },
+      child: BlocListener<RestaurantBloc, RestaurantState>(
       listener: (context, state) {
         if (state is RestaurantSelectError) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -89,6 +103,7 @@ class _RestaurantSelectorView extends StatelessWidget {
           },
         ),
       ),
+      ),
     );
   }
 }
@@ -101,10 +116,15 @@ class _Sidebar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final authState = context.watch<AuthBloc>().state;
-    final roleName = authState is TenantAuthenticated
-        ? authState.role.name[0].toUpperCase() +
-            authState.role.name.substring(1)
-        : 'Owner';
+    String displayName = 'User';
+    String roleSubtitle = 'Owner';
+    if (authState is TenantAuthenticated) {
+      displayName = authState.displayName;
+      roleSubtitle = roleDisplayLabel(authState.role);
+    } else if (authState is BaseAuthenticated) {
+      displayName = authState.displayName;
+    }
+    final initials = userInitials(displayName);
 
     return Container(
       width: 220,
@@ -179,7 +199,7 @@ class _Sidebar extends StatelessWidget {
                       radius: 16,
                       backgroundColor: _logoOrange,
                       child: Text(
-                        roleName[0].toUpperCase(),
+                        initials,
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 13,
@@ -193,7 +213,7 @@ class _Sidebar extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            roleName,
+                            displayName,
                             style: const TextStyle(
                               color: _sidebarText,
                               fontSize: 13,
@@ -202,10 +222,10 @@ class _Sidebar extends StatelessWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
-                          const Text(
-                            'Owner',
+                          Text(
+                            roleSubtitle,
                             style:
-                                TextStyle(color: _sidebarMuted, fontSize: 11),
+                                const TextStyle(color: _sidebarMuted, fontSize: 11),
                           ),
                         ],
                       ),
@@ -292,6 +312,11 @@ class _ContentArea extends StatelessWidget {
               _SkeletonGrid(),
             ),
           RestaurantEmpty() => _buildScrollable(context, _AddRestaurantCard()),
+          RestaurantLoaded(:final restaurants) when restaurants.length == 1 =>
+            _buildScrollable(
+              context,
+              const _AutoSelectingView(),
+            ),
           RestaurantLoaded(:final restaurants) => _buildScrollable(
               context,
               _RestaurantGrid(restaurants: restaurants, selectingId: null),
@@ -337,6 +362,48 @@ class _ContentArea extends StatelessWidget {
           const SizedBox(height: 28),
           child,
         ],
+      ),
+    );
+  }
+}
+
+// ── Auto-selecting (single restaurant) ────────────────────────────────────────
+
+class _AutoSelectingView extends StatelessWidget {
+  const _AutoSelectingView();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 48),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 32,
+              height: 32,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.5,
+                color: _accentOrange,
+              ),
+            ),
+            SizedBox(height: 16),
+            Text(
+              'Opening your restaurant…',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: _titleColor,
+              ),
+            ),
+            SizedBox(height: 6),
+            Text(
+              'Staff accounts are linked to one venue',
+              style: TextStyle(fontSize: 13, color: _mutedColor),
+            ),
+          ],
+        ),
       ),
     );
   }

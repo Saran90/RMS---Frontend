@@ -212,43 +212,6 @@ class _BillingView extends StatelessWidget {
         ),
       );
     }
-
-    // When a bill is fully paid, ensure the order is completed and return to list.
-    if (state is BillLoaded && state.bill.status == 'paid') {
-      _onBillPaid(context, state.bill.orderId);
-    }
-  }
-
-  Future<void> _onBillPaid(BuildContext context, String orderId) async {
-    try {
-      await context.read<OrderRepository>().completeOrderIfNeeded(orderId);
-    } on ApiException catch (e) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Payment recorded, but order status could not be updated: '
-            '${e.message}',
-          ),
-          backgroundColor: AppTheme.warning,
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 4),
-        ),
-      );
-      context.read<BillingBloc>().add(const BillsListRequested());
-      return;
-    }
-
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Payment recorded — order marked as completed.'),
-        backgroundColor: AppTheme.success,
-        behavior: SnackBarBehavior.floating,
-        duration: Duration(seconds: 3),
-      ),
-    );
-    context.read<BillingBloc>().add(const BillsListRequested());
   }
 
   Widget _buildBody(BuildContext context, BillingState state) {
@@ -1443,8 +1406,21 @@ class _PaymentFormCardState extends State<_PaymentFormCard> {
               ? null
               : _referenceController.text.trim(),
         ));
-    context.read<BillingBloc>().stream.first.then((_) {
-      if (mounted) setState(() => _submitting = false);
+    context.read<BillingBloc>().stream
+        .firstWhere((s) => s is BillLoaded || s is BillingError)
+        .then((state) {
+      if (!mounted) return;
+      setState(() => _submitting = false);
+      if (state is BillLoaded && state.bill.status == 'paid') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Payment recorded.'),
+            backgroundColor: AppTheme.success,
+            behavior: SnackBarBehavior.floating,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
     });
   }
 

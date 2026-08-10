@@ -52,24 +52,6 @@ class OrderRepository {
     return Order.fromJson(data);
   }
 
-  /// Marks an order completed when billing finishes, skipping if already done.
-  ///
-  /// The backend may complete the order when a bill is paid (e.g. via webhook),
-  /// so duplicate completion requests are ignored.
-  Future<void> completeOrderIfNeeded(String id) async {
-    try {
-      final order = await getOrder(id);
-      if (order.status == OrderStatus.completed) return;
-      await updateOrderStatus(id, OrderStatus.completed);
-    } on ApiException catch (e) {
-      if (e.statusCode == 422 &&
-          e.errorCode == 'INVALID_ORDER_STATUS_TRANSITION') {
-        return;
-      }
-      rethrow;
-    }
-  }
-
   Future<Order> cancelOrder(String id, {String? reason}) async {
     final data = await _client.patch<Map<String, dynamic>>(
       '/api/v1/tenant/orders/$id/status',

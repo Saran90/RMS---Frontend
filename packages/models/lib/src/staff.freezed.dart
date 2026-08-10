@@ -20,23 +20,19 @@ Staff _$StaffFromJson(Map<String, dynamic> json) {
 
 /// @nodoc
 mixin _$Staff {
-  /// Unique identifier.
   String get id => throw _privateConstructorUsedError;
-
-  /// Email address (used for login and invitations).
-  String get email => throw _privateConstructorUsedError;
-
-  /// Role that governs navigation visibility and permissions.
+  @JsonKey(name: 'user_id')
+  String? get userId => throw _privateConstructorUsedError;
+  @JsonKey(name: 'full_name')
+  String get fullName => throw _privateConstructorUsedError;
+  String? get email => throw _privateConstructorUsedError;
+  @JsonKey(name: 'phone_number')
+  String? get phoneNumber => throw _privateConstructorUsedError;
+  String get username => throw _privateConstructorUsedError;
   StaffRole get role => throw _privateConstructorUsedError;
-
-  /// Staff status: "invited", "active", or "inactive".
   String get status => throw _privateConstructorUsedError;
-
-  /// Timestamp when the staff member was created.
   @JsonKey(name: 'created_at')
   DateTime get createdAt => throw _privateConstructorUsedError;
-
-  /// Timestamp when the staff member was last updated.
   @JsonKey(name: 'updated_at')
   DateTime get updatedAt => throw _privateConstructorUsedError;
 
@@ -56,7 +52,11 @@ abstract class $StaffCopyWith<$Res> {
   @useResult
   $Res call(
       {String id,
-      String email,
+      @JsonKey(name: 'user_id') String? userId,
+      @JsonKey(name: 'full_name') String fullName,
+      String? email,
+      @JsonKey(name: 'phone_number') String? phoneNumber,
+      String username,
       StaffRole role,
       String status,
       @JsonKey(name: 'created_at') DateTime createdAt,
@@ -79,7 +79,11 @@ class _$StaffCopyWithImpl<$Res, $Val extends Staff>
   @override
   $Res call({
     Object? id = null,
-    Object? email = null,
+    Object? userId = freezed,
+    Object? fullName = null,
+    Object? email = freezed,
+    Object? phoneNumber = freezed,
+    Object? username = null,
     Object? role = null,
     Object? status = null,
     Object? createdAt = null,
@@ -90,9 +94,25 @@ class _$StaffCopyWithImpl<$Res, $Val extends Staff>
           ? _value.id
           : id // ignore: cast_nullable_to_non_nullable
               as String,
-      email: null == email
+      userId: freezed == userId
+          ? _value.userId
+          : userId // ignore: cast_nullable_to_non_nullable
+              as String?,
+      fullName: null == fullName
+          ? _value.fullName
+          : fullName // ignore: cast_nullable_to_non_nullable
+              as String,
+      email: freezed == email
           ? _value.email
           : email // ignore: cast_nullable_to_non_nullable
+              as String?,
+      phoneNumber: freezed == phoneNumber
+          ? _value.phoneNumber
+          : phoneNumber // ignore: cast_nullable_to_non_nullable
+              as String?,
+      username: null == username
+          ? _value.username
+          : username // ignore: cast_nullable_to_non_nullable
               as String,
       role: null == role
           ? _value.role
@@ -123,7 +143,11 @@ abstract class _$$StaffImplCopyWith<$Res> implements $StaffCopyWith<$Res> {
   @useResult
   $Res call(
       {String id,
-      String email,
+      @JsonKey(name: 'user_id') String? userId,
+      @JsonKey(name: 'full_name') String fullName,
+      String? email,
+      @JsonKey(name: 'phone_number') String? phoneNumber,
+      String username,
       StaffRole role,
       String status,
       @JsonKey(name: 'created_at') DateTime createdAt,
@@ -144,7 +168,11 @@ class __$$StaffImplCopyWithImpl<$Res>
   @override
   $Res call({
     Object? id = null,
-    Object? email = null,
+    Object? userId = freezed,
+    Object? fullName = null,
+    Object? email = freezed,
+    Object? phoneNumber = freezed,
+    Object? username = null,
     Object? role = null,
     Object? status = null,
     Object? createdAt = null,
@@ -155,9 +183,25 @@ class __$$StaffImplCopyWithImpl<$Res>
           ? _value.id
           : id // ignore: cast_nullable_to_non_nullable
               as String,
-      email: null == email
+      userId: freezed == userId
+          ? _value.userId
+          : userId // ignore: cast_nullable_to_non_nullable
+              as String?,
+      fullName: null == fullName
+          ? _value.fullName
+          : fullName // ignore: cast_nullable_to_non_nullable
+              as String,
+      email: freezed == email
           ? _value.email
           : email // ignore: cast_nullable_to_non_nullable
+              as String?,
+      phoneNumber: freezed == phoneNumber
+          ? _value.phoneNumber
+          : phoneNumber // ignore: cast_nullable_to_non_nullable
+              as String?,
+      username: null == username
+          ? _value.username
+          : username // ignore: cast_nullable_to_non_nullable
               as String,
       role: null == role
           ? _value.role
@@ -184,7 +228,11 @@ class __$$StaffImplCopyWithImpl<$Res>
 class _$StaffImpl extends _Staff {
   const _$StaffImpl(
       {required this.id,
-      required this.email,
+      @JsonKey(name: 'user_id') this.userId,
+      @JsonKey(name: 'full_name') required this.fullName,
+      this.email,
+      @JsonKey(name: 'phone_number') this.phoneNumber,
+      required this.username,
       required this.role,
       required this.status,
       @JsonKey(name: 'created_at') required this.createdAt,
@@ -194,35 +242,35 @@ class _$StaffImpl extends _Staff {
   factory _$StaffImpl.fromJson(Map<String, dynamic> json) =>
       _$$StaffImplFromJson(json);
 
-  /// Unique identifier.
   @override
   final String id;
-
-  /// Email address (used for login and invitations).
   @override
-  final String email;
-
-  /// Role that governs navigation visibility and permissions.
+  @JsonKey(name: 'user_id')
+  final String? userId;
+  @override
+  @JsonKey(name: 'full_name')
+  final String fullName;
+  @override
+  final String? email;
+  @override
+  @JsonKey(name: 'phone_number')
+  final String? phoneNumber;
+  @override
+  final String username;
   @override
   final StaffRole role;
-
-  /// Staff status: "invited", "active", or "inactive".
   @override
   final String status;
-
-  /// Timestamp when the staff member was created.
   @override
   @JsonKey(name: 'created_at')
   final DateTime createdAt;
-
-  /// Timestamp when the staff member was last updated.
   @override
   @JsonKey(name: 'updated_at')
   final DateTime updatedAt;
 
   @override
   String toString() {
-    return 'Staff(id: $id, email: $email, role: $role, status: $status, createdAt: $createdAt, updatedAt: $updatedAt)';
+    return 'Staff(id: $id, userId: $userId, fullName: $fullName, email: $email, phoneNumber: $phoneNumber, username: $username, role: $role, status: $status, createdAt: $createdAt, updatedAt: $updatedAt)';
   }
 
   @override
@@ -231,7 +279,14 @@ class _$StaffImpl extends _Staff {
         (other.runtimeType == runtimeType &&
             other is _$StaffImpl &&
             (identical(other.id, id) || other.id == id) &&
+            (identical(other.userId, userId) || other.userId == userId) &&
+            (identical(other.fullName, fullName) ||
+                other.fullName == fullName) &&
             (identical(other.email, email) || other.email == email) &&
+            (identical(other.phoneNumber, phoneNumber) ||
+                other.phoneNumber == phoneNumber) &&
+            (identical(other.username, username) ||
+                other.username == username) &&
             (identical(other.role, role) || other.role == role) &&
             (identical(other.status, status) || other.status == status) &&
             (identical(other.createdAt, createdAt) ||
@@ -242,8 +297,8 @@ class _$StaffImpl extends _Staff {
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode =>
-      Object.hash(runtimeType, id, email, role, status, createdAt, updatedAt);
+  int get hashCode => Object.hash(runtimeType, id, userId, fullName, email,
+      phoneNumber, username, role, status, createdAt, updatedAt);
 
   /// Create a copy of Staff
   /// with the given fields replaced by the non-null parameter values.
@@ -264,7 +319,11 @@ class _$StaffImpl extends _Staff {
 abstract class _Staff extends Staff {
   const factory _Staff(
           {required final String id,
-          required final String email,
+          @JsonKey(name: 'user_id') final String? userId,
+          @JsonKey(name: 'full_name') required final String fullName,
+          final String? email,
+          @JsonKey(name: 'phone_number') final String? phoneNumber,
+          required final String username,
           required final StaffRole role,
           required final String status,
           @JsonKey(name: 'created_at') required final DateTime createdAt,
@@ -274,28 +333,28 @@ abstract class _Staff extends Staff {
 
   factory _Staff.fromJson(Map<String, dynamic> json) = _$StaffImpl.fromJson;
 
-  /// Unique identifier.
   @override
   String get id;
-
-  /// Email address (used for login and invitations).
   @override
-  String get email;
-
-  /// Role that governs navigation visibility and permissions.
+  @JsonKey(name: 'user_id')
+  String? get userId;
+  @override
+  @JsonKey(name: 'full_name')
+  String get fullName;
+  @override
+  String? get email;
+  @override
+  @JsonKey(name: 'phone_number')
+  String? get phoneNumber;
+  @override
+  String get username;
   @override
   StaffRole get role;
-
-  /// Staff status: "invited", "active", or "inactive".
   @override
   String get status;
-
-  /// Timestamp when the staff member was created.
   @override
   @JsonKey(name: 'created_at')
   DateTime get createdAt;
-
-  /// Timestamp when the staff member was last updated.
   @override
   @JsonKey(name: 'updated_at')
   DateTime get updatedAt;

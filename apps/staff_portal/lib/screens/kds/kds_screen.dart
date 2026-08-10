@@ -1,4 +1,4 @@
-// Feature: rms-flutter-frontend
+﻿// Feature: rms-flutter-frontend
 // Implements: Requirements 10.1, 10.2, 10.3, 10.4, 10.5, 10.6, 10.7, 10.8, 17.4, 17.5
 
 import 'dart:async';
@@ -8,26 +8,93 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:models/models.dart';
 import 'package:staff_portal/kds/kds_bloc.dart';
+import 'package:staff_portal/kds/kitchen_history_bloc.dart';
 
-/// KDS (Kitchen Display System) screen — orders grouped with their items,
+/// Label for dine-in table context on KDS order cards.
+String? kdsTableLabel(KdsOrder order) {
+  if (order.orderType != OrderType.dineIn) return null;
+  final tableNum = order.tableNumber;
+  if (tableNum != null) {
+    final section = order.sectionLabel?.trim();
+    if (section != null && section.isNotEmpty) {
+      return 'Table $tableNum · $section';
+    }
+    return 'Table $tableNum';
+  }
+  if (order.tableId != null) return 'Table assigned';
+  return null;
+}
+
+/// KDS (Kitchen Display System) screen
 /// elapsed time, status badges, and overdue indicators.
 class KdsScreen extends StatelessWidget {
   const KdsScreen({super.key});
 
+  static const stationId = 'default';
+
   @override
   Widget build(BuildContext context) {
-    return BlocProvider<KdsBloc>(
-      create: (ctx) => KdsBloc(repository: ctx.read())
-        ..add(const KdsFeedRequested('default')),
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider(
+          create: (ctx) => KdsBloc(repository: ctx.read())
+            ..add(const KdsFeedRequested(stationId)),
+        ),
+        BlocProvider(
+          create: (ctx) => KitchenHistoryBloc(repository: ctx.read()),
+        ),
+      ],
       child: const _KdsView(),
     );
   }
 }
 
-// ── Main view ─────────────────────────────────────────────────────────────────
+// â”€â”€ Main view â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-class _KdsView extends StatelessWidget {
+class _KdsView extends StatefulWidget {
   const _KdsView();
+
+  @override
+  State<_KdsView> createState() => _KdsViewState();
+}
+
+class _KdsViewState extends State<_KdsView>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this)
+      ..addListener(_onTabChanged);
+  }
+
+  void _onTabChanged() {
+    if (_tabController.indexIsChanging) return;
+    if (_tabController.index == 1) {
+      context
+          .read<KitchenHistoryBloc>()
+          .add(const KitchenHistoryLoadRequested(KdsScreen.stationId));
+    }
+  }
+
+  @override
+  void dispose() {
+    _tabController
+      ..removeListener(_onTabChanged)
+      ..dispose();
+    super.dispose();
+  }
+
+  void _refreshCurrentTab() {
+    if (_tabController.index == 0) {
+      context.read<KdsBloc>().add(const KdsFeedRequested(KdsScreen.stationId));
+    } else {
+      context
+          .read<KitchenHistoryBloc>()
+          .add(const KitchenHistoryLoadRequested(KdsScreen.stationId));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -52,27 +119,88 @@ class _KdsView extends StatelessWidget {
             IconButton(
               icon: const Icon(Icons.refresh),
               tooltip: 'Refresh',
-              onPressed: () => context
-                  .read<KdsBloc>()
-                  .add(const KdsFeedRequested('default')),
+              onPressed: _refreshCurrentTab,
             ),
           ],
+          bottom: TabBar(
+            controller: _tabController,
+            tabs: const [
+              Tab(text: 'Active'),
+              Tab(text: 'History'),
+            ],
+          ),
         ),
-        body: BlocBuilder<KdsBloc, KdsState>(
-          builder: (context, state) => switch (state) {
-            KdsInitial() || KdsLoading() => const _LoadingView(),
-            KdsFeedLoaded(:final orders, :final pollingError) =>
-              _FeedView(orders: orders, pollingError: pollingError),
-            KdsItemUpdateError(:final orders) =>
-              _FeedView(orders: orders, pollingError: false),
-          },
+        body: TabBarView(
+          controller: _tabController,
+          children: const [
+            _ActiveFeedTab(),
+            _HistoryTab(),
+          ],
         ),
       ),
     );
   }
 }
 
-// ── Loading view ──────────────────────────────────────────────────────────────
+class _ActiveFeedTab extends StatelessWidget {
+  const _ActiveFeedTab();
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<KdsBloc, KdsState>(
+      builder: (context, state) => switch (state) {
+        KdsInitial() || KdsLoading() => const _LoadingView(),
+        KdsFeedLoaded(:final orders, :final pollingError) =>
+          _FeedView(orders: orders, pollingError: pollingError),
+        KdsItemUpdateError(:final orders) =>
+          _FeedView(orders: orders, pollingError: false),
+      },
+    );
+  }
+}
+
+class _HistoryTab extends StatelessWidget {
+  const _HistoryTab();
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<KitchenHistoryBloc, KitchenHistoryState>(
+      builder: (context, state) {
+        return switch (state) {
+          KitchenHistoryInitial() || KitchenHistoryLoading() =>
+            const _LoadingView(),
+          KitchenHistoryLoaded(:final orders) => orders.isEmpty
+              ? const _HistoryEmptyView()
+              : _HistoryOrderList(orders: orders),
+          KitchenHistoryError(:final message) => Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.error_outline,
+                        size: 40, color: AppTheme.mutedText),
+                    const SizedBox(height: 12),
+                    Text(message, textAlign: TextAlign.center),
+                    const SizedBox(height: 16),
+                    OutlinedButton(
+                      onPressed: () => context.read<KitchenHistoryBloc>().add(
+                            const KitchenHistoryLoadRequested(
+                                KdsScreen.stationId),
+                          ),
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        };
+      },
+    );
+  }
+}
+
+// â”€â”€ Loading view â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _LoadingView extends StatelessWidget {
   const _LoadingView();
@@ -90,7 +218,7 @@ class _LoadingView extends StatelessWidget {
   }
 }
 
-// ── Feed view ─────────────────────────────────────────────────────────────────
+// â”€â”€ Feed view â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _FeedView extends StatelessWidget {
   const _FeedView({required this.orders, required this.pollingError});
@@ -113,7 +241,7 @@ class _FeedView extends StatelessWidget {
   }
 }
 
-// ── Polling error banner ──────────────────────────────────────────────────────
+// â”€â”€ Polling error banner â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _PollingErrorBanner extends StatelessWidget {
   const _PollingErrorBanner();
@@ -131,7 +259,7 @@ class _PollingErrorBanner extends StatelessWidget {
           const SizedBox(width: AppTheme.spacing8),
           Expanded(
             child: Text(
-              'Live updates paused — displaying last known data',
+              'Live updates paused â€” displaying last known data',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: AppTheme.warning, fontWeight: FontWeight.w500),
             ),
@@ -142,7 +270,7 @@ class _PollingErrorBanner extends StatelessWidget {
   }
 }
 
-// ── Scrollable list of order cards ───────────────────────────────────────────
+// â”€â”€ Scrollable list of order cards â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _KdsOrderList extends StatelessWidget {
   const _KdsOrderList({required this.orders});
@@ -159,7 +287,7 @@ class _KdsOrderList extends StatelessWidget {
   }
 }
 
-// ── Order card ────────────────────────────────────────────────────────────────
+// â”€â”€ Order card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _KdsOrderCard extends StatefulWidget {
   const _KdsOrderCard({required this.order});
@@ -210,14 +338,14 @@ class _KdsOrderCardState extends State<_KdsOrderCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // ── Header ───────────────────────────────────────────────────────
+          // â”€â”€ Header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
           _OrderCardHeader(
             order: order,
             elapsed: _elapsed,
             isOverdue: isOverdue,
           ),
 
-          // ── Items ─────────────────────────────────────────────────────────
+          // â”€â”€ Items â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
           ...order.items.map((item) => _KdsItemRow(
                 item: item,
                 orderId: order.orderId,
@@ -229,7 +357,7 @@ class _KdsOrderCardState extends State<_KdsOrderCard> {
   }
 }
 
-// ── Order card header ─────────────────────────────────────────────────────────
+// â”€â”€ Order card header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _OrderCardHeader extends StatelessWidget {
   const _OrderCardHeader({
@@ -296,6 +424,28 @@ class _OrderCardHeader extends StatelessWidget {
                     _HeaderChip(label: statusLabel, isStatus: true),
                   ],
                 ),
+                if (kdsTableLabel(order) != null) ...[
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.table_restaurant_outlined,
+                        size: 14,
+                        color: isOverdue ? AppTheme.error : AppTheme.mutedText,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        kdsTableLabel(order)!,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: isOverdue
+                                  ? AppTheme.error
+                                  : AppTheme.onSurface,
+                            ),
+                      ),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),
@@ -343,7 +493,7 @@ class _HeaderChip extends StatelessWidget {
   }
 }
 
-// ── Item row inside a card ────────────────────────────────────────────────────
+// â”€â”€ Item row inside a card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _KdsItemRow extends StatelessWidget {
   const _KdsItemRow({
@@ -438,7 +588,7 @@ class _KdsItemRow extends StatelessWidget {
   }
 }
 
-// ── Elapsed time label ────────────────────────────────────────────────────────
+// â”€â”€ Elapsed time label â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _ElapsedLabel extends StatelessWidget {
   const _ElapsedLabel({required this.elapsed, this.isOverdue = false});
@@ -465,7 +615,7 @@ class _ElapsedLabel extends StatelessWidget {
   }
 }
 
-// ── Overdue badge ─────────────────────────────────────────────────────────────
+// â”€â”€ Overdue badge â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _OverdueBadge extends StatelessWidget {
   const _OverdueBadge();
@@ -487,7 +637,7 @@ class _OverdueBadge extends StatelessWidget {
   }
 }
 
-// ── KDS status badge ──────────────────────────────────────────────────────────
+// â”€â”€ KDS status badge â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _KdsStatusBadge extends StatelessWidget {
   const _KdsStatusBadge({required this.status});
@@ -515,7 +665,7 @@ class _KdsStatusBadge extends StatelessWidget {
   }
 }
 
-// ── Action button ─────────────────────────────────────────────────────────────
+// â”€â”€ Action button â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _KdsActionButton extends StatelessWidget {
   const _KdsActionButton({required this.item, required this.orderId});
@@ -580,7 +730,7 @@ class _ActionBtn extends StatelessWidget {
   }
 }
 
-// ── Empty state ───────────────────────────────────────────────────────────────
+// â”€â”€ Empty state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _EmptyKds extends StatelessWidget {
   const _EmptyKds();
@@ -616,5 +766,169 @@ class _EmptyKds extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+// â”€â”€ Kitchen history (completed orders) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+class _HistoryEmptyView extends StatelessWidget {
+  const _HistoryEmptyView();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(AppTheme.spacing24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.history, size: 64, color: AppTheme.mutedText),
+            const SizedBox(height: AppTheme.spacing16),
+            Text(
+              'No kitchen history yet',
+              style: Theme.of(context)
+                  .textTheme
+                  .titleMedium
+                  ?.copyWith(color: AppTheme.mutedText),
+            ),
+            const SizedBox(height: AppTheme.spacing8),
+            Text(
+              'Orders you complete in KDS will appear here',
+              style: Theme.of(context)
+                  .textTheme
+                  .bodyMedium
+                  ?.copyWith(color: AppTheme.mutedText),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _HistoryOrderList extends StatelessWidget {
+  const _HistoryOrderList({required this.orders});
+  final List<KdsOrder> orders;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.separated(
+      padding: const EdgeInsets.all(AppTheme.spacing16),
+      itemCount: orders.length,
+      separatorBuilder: (_, __) => const SizedBox(height: AppTheme.spacing12),
+      itemBuilder: (ctx, i) => _HistoryOrderCard(order: orders[i]),
+    );
+  }
+}
+
+class _HistoryOrderCard extends StatelessWidget {
+  const _HistoryOrderCard({required this.order});
+  final KdsOrder order;
+
+  @override
+  Widget build(BuildContext context) {
+    final orderLabel = switch (order.orderType) {
+      OrderType.dineIn => 'Dine-in',
+      OrderType.takeaway => 'Takeaway',
+      OrderType.delivery => 'Delivery',
+    };
+
+    return Container(
+      decoration: BoxDecoration(
+        color: AppTheme.cardSurface,
+        borderRadius: BorderRadius.circular(AppTheme.radiusCard),
+        border: Border.all(color: AppTheme.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(AppTheme.spacing12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '#${order.orderId.substring(0, 8).toUpperCase()}',
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleSmall
+                            ?.copyWith(fontWeight: FontWeight.w800),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        orderLabel,
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(color: AppTheme.mutedText),
+                      ),
+                      if (kdsTableLabel(order) != null) ...[
+                        const SizedBox(height: 2),
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.table_restaurant_outlined,
+                              size: 13,
+                              color: AppTheme.mutedText,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              kdsTableLabel(order)!,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                    color: AppTheme.onSurface,
+                                  ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                Text(
+                  _formatDate(order.orderCreatedAt),
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: AppTheme.mutedText),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          ...order.items.map(
+            (item) => Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppTheme.spacing12,
+                vertical: AppTheme.spacing8,
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '${item.quantity}x ${item.itemName}',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                  ),
+                  _KdsStatusBadge(status: item.kdsStatus),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatDate(DateTime dt) {
+    final local = dt.toLocal();
+    return '${local.day}/${local.month} ${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
   }
 }

@@ -40,7 +40,7 @@ const Map<StaffRole, Set<String>> _expectedLabels = {
   },
   StaffRole.waiter: {'Dashboard', 'Orders', 'Tables'},
   StaffRole.chef: {'Dashboard', 'KDS'},
-  StaffRole.cashier: {'Dashboard', 'Orders', 'Billing'},
+  StaffRole.cashier: {'Orders', 'Billing'},
   StaffRole.deliveryStaff: {'Dashboard', 'Orders'},
 };
 

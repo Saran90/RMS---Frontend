@@ -19,28 +19,29 @@ class NavItem {
   final Set<StaffRole> allowedRoles;
 }
 
-/// Full list of navigation items with their role permission sets.
-///
-/// Requirements 16.3–16.6:
-/// - owner: all 10 items
-/// - manager: all except Settings
-/// - waiter: Dashboard, Orders, Tables
-/// - chef: Dashboard, KDS
-/// - cashier: Dashboard, Orders, Billing
-/// - delivery_staff: Dashboard, Orders
+const _allStaffRoles = {
+  StaffRole.owner,
+  StaffRole.manager,
+  StaffRole.waiter,
+  StaffRole.chef,
+  StaffRole.cashier,
+  StaffRole.deliveryStaff,
+};
+
+/// Roles that use the operational dashboard (stats, floor, active orders).
+const _dashboardRoles = {
+  StaffRole.owner,
+  StaffRole.manager,
+  StaffRole.deliveryStaff,
+};
+
+/// Navigation items with role permission sets.
 const List<NavItem> kNavItems = [
   NavItem(
     icon: Icons.dashboard_outlined,
     label: 'Dashboard',
     route: AppRoutes.dashboard,
-    allowedRoles: {
-      StaffRole.owner,
-      StaffRole.manager,
-      StaffRole.waiter,
-      StaffRole.chef,
-      StaffRole.cashier,
-      StaffRole.deliveryStaff,
-    },
+    allowedRoles: _dashboardRoles,
   ),
   NavItem(
     icon: Icons.receipt_long_outlined,
@@ -64,7 +65,11 @@ const List<NavItem> kNavItems = [
     icon: Icons.table_restaurant_outlined,
     label: 'Tables',
     route: AppRoutes.tables,
-    allowedRoles: {StaffRole.owner, StaffRole.manager, StaffRole.waiter},
+    allowedRoles: {
+      StaffRole.owner,
+      StaffRole.manager,
+      StaffRole.waiter,
+    },
   ),
   NavItem(
     icon: Icons.event_outlined,
@@ -80,13 +85,21 @@ const List<NavItem> kNavItems = [
     icon: Icons.kitchen_outlined,
     label: 'KDS',
     route: AppRoutes.kds,
-    allowedRoles: {StaffRole.owner, StaffRole.manager, StaffRole.chef},
+    allowedRoles: {
+      StaffRole.owner,
+      StaffRole.manager,
+      StaffRole.chef,
+    },
   ),
   NavItem(
     icon: Icons.point_of_sale_outlined,
     label: 'Billing',
     route: AppRoutes.billing,
-    allowedRoles: {StaffRole.owner, StaffRole.manager, StaffRole.cashier},
+    allowedRoles: {
+      StaffRole.owner,
+      StaffRole.manager,
+      StaffRole.cashier,
+    },
   ),
   NavItem(
     icon: Icons.people_outline,
@@ -111,6 +124,12 @@ const List<NavItem> kNavItems = [
     label: 'Settings',
     route: AppRoutes.settings,
     allowedRoles: {StaffRole.owner},
+  ),
+  NavItem(
+    icon: Icons.person_outline,
+    label: 'Profile',
+    route: AppRoutes.profile,
+    allowedRoles: _allStaffRoles,
   ),
 ];
 

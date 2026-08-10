@@ -312,12 +312,20 @@ class _MetadataCard extends StatelessWidget {
               padding: const EdgeInsets.only(top: 8),
               child: _InfoRow(
                 label: 'Table',
-                value: order.tableId!,
+                value: _formatTableLabel(order),
               ),
             ),
         ],
       ),
     );
+  }
+
+  static String _formatTableLabel(Order order) {
+    final number = order.tableNumber?.trim();
+    if (number != null && number.isNotEmpty) {
+      return 'Table $number';
+    }
+    return order.tableId ?? '—';
   }
 
   /// Formats a [DateTime] as "dd MMM yyyy, HH:mm" without requiring intl.
@@ -509,8 +517,8 @@ const _statusTransitions = <OrderStatus, List<OrderStatus>>{
   OrderStatus.pending: [OrderStatus.confirmed],
   OrderStatus.confirmed: [], // preparing is triggered by KDS only
   OrderStatus.preparing: [OrderStatus.ready],
-  OrderStatus.ready: [OrderStatus.served],
-  OrderStatus.served: [], // completed is triggered by billing payment
+  OrderStatus.ready: [OrderStatus.served, OrderStatus.completed],
+  OrderStatus.served: [OrderStatus.completed],
   OrderStatus.completed: [],
   OrderStatus.cancelled: [],
 };
@@ -621,7 +629,7 @@ class _StatusTransitionSection extends StatelessWidget {
                 order.status == OrderStatus.cancelled
                     ? 'Order cancelled.'
                     : order.status == OrderStatus.served
-                        ? 'Order served — go to Billing to record payment and complete the order.'
+                        ? 'Order served — mark complete when guests have finished.'
                         : order.status == OrderStatus.confirmed
                             ? 'Order confirmed — kitchen will pick this up from the KDS.'
                             : 'Order completed.',

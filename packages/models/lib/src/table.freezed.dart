@@ -46,10 +46,15 @@ mixin _$Table {
   String? get reservationName => throw _privateConstructorUsedError;
   @JsonKey(name: 'reservation_phone')
   String? get reservationPhone => throw _privateConstructorUsedError;
+  @JsonKey(name: 'party_size')
+  int? get partySize => throw _privateConstructorUsedError;
   @JsonKey(name: 'reserved_for')
   DateTime? get reservedFor => throw _privateConstructorUsedError;
   @JsonKey(name: 'reserved_until')
   DateTime? get reservedUntil => throw _privateConstructorUsedError;
+
+  /// Seating capacity of the table (from backend `capacity` column).
+  int? get capacity => throw _privateConstructorUsedError;
 
   /// Serializes this Table to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -74,8 +79,10 @@ abstract class $TableCopyWith<$Res> {
       @JsonKey(name: 'qr_url') String? qrUrl,
       @JsonKey(name: 'reservation_name') String? reservationName,
       @JsonKey(name: 'reservation_phone') String? reservationPhone,
+      @JsonKey(name: 'party_size') int? partySize,
       @JsonKey(name: 'reserved_for') DateTime? reservedFor,
-      @JsonKey(name: 'reserved_until') DateTime? reservedUntil});
+      @JsonKey(name: 'reserved_until') DateTime? reservedUntil,
+      int? capacity});
 }
 
 /// @nodoc
@@ -101,8 +108,10 @@ class _$TableCopyWithImpl<$Res, $Val extends Table>
     Object? qrUrl = freezed,
     Object? reservationName = freezed,
     Object? reservationPhone = freezed,
+    Object? partySize = freezed,
     Object? reservedFor = freezed,
     Object? reservedUntil = freezed,
+    Object? capacity = freezed,
   }) {
     return _then(_value.copyWith(
       id: null == id
@@ -137,6 +146,10 @@ class _$TableCopyWithImpl<$Res, $Val extends Table>
           ? _value.reservationPhone
           : reservationPhone // ignore: cast_nullable_to_non_nullable
               as String?,
+      partySize: freezed == partySize
+          ? _value.partySize
+          : partySize // ignore: cast_nullable_to_non_nullable
+              as int?,
       reservedFor: freezed == reservedFor
           ? _value.reservedFor
           : reservedFor // ignore: cast_nullable_to_non_nullable
@@ -145,6 +158,10 @@ class _$TableCopyWithImpl<$Res, $Val extends Table>
           ? _value.reservedUntil
           : reservedUntil // ignore: cast_nullable_to_non_nullable
               as DateTime?,
+      capacity: freezed == capacity
+          ? _value.capacity
+          : capacity // ignore: cast_nullable_to_non_nullable
+              as int?,
     ) as $Val);
   }
 }
@@ -165,8 +182,10 @@ abstract class _$$TableImplCopyWith<$Res> implements $TableCopyWith<$Res> {
       @JsonKey(name: 'qr_url') String? qrUrl,
       @JsonKey(name: 'reservation_name') String? reservationName,
       @JsonKey(name: 'reservation_phone') String? reservationPhone,
+      @JsonKey(name: 'party_size') int? partySize,
       @JsonKey(name: 'reserved_for') DateTime? reservedFor,
-      @JsonKey(name: 'reserved_until') DateTime? reservedUntil});
+      @JsonKey(name: 'reserved_until') DateTime? reservedUntil,
+      int? capacity});
 }
 
 /// @nodoc
@@ -190,8 +209,10 @@ class __$$TableImplCopyWithImpl<$Res>
     Object? qrUrl = freezed,
     Object? reservationName = freezed,
     Object? reservationPhone = freezed,
+    Object? partySize = freezed,
     Object? reservedFor = freezed,
     Object? reservedUntil = freezed,
+    Object? capacity = freezed,
   }) {
     return _then(_$TableImpl(
       id: null == id
@@ -226,6 +247,10 @@ class __$$TableImplCopyWithImpl<$Res>
           ? _value.reservationPhone
           : reservationPhone // ignore: cast_nullable_to_non_nullable
               as String?,
+      partySize: freezed == partySize
+          ? _value.partySize
+          : partySize // ignore: cast_nullable_to_non_nullable
+              as int?,
       reservedFor: freezed == reservedFor
           ? _value.reservedFor
           : reservedFor // ignore: cast_nullable_to_non_nullable
@@ -234,6 +259,10 @@ class __$$TableImplCopyWithImpl<$Res>
           ? _value.reservedUntil
           : reservedUntil // ignore: cast_nullable_to_non_nullable
               as DateTime?,
+      capacity: freezed == capacity
+          ? _value.capacity
+          : capacity // ignore: cast_nullable_to_non_nullable
+              as int?,
     ));
   }
 }
@@ -250,8 +279,10 @@ class _$TableImpl implements _Table {
       @JsonKey(name: 'qr_url') this.qrUrl,
       @JsonKey(name: 'reservation_name') this.reservationName,
       @JsonKey(name: 'reservation_phone') this.reservationPhone,
+      @JsonKey(name: 'party_size') this.partySize,
       @JsonKey(name: 'reserved_for') this.reservedFor,
-      @JsonKey(name: 'reserved_until') this.reservedUntil});
+      @JsonKey(name: 'reserved_until') this.reservedUntil,
+      this.capacity});
 
   factory _$TableImpl.fromJson(Map<String, dynamic> json) =>
       _$$TableImplFromJson(json);
@@ -291,15 +322,22 @@ class _$TableImpl implements _Table {
   @JsonKey(name: 'reservation_phone')
   final String? reservationPhone;
   @override
+  @JsonKey(name: 'party_size')
+  final int? partySize;
+  @override
   @JsonKey(name: 'reserved_for')
   final DateTime? reservedFor;
   @override
   @JsonKey(name: 'reserved_until')
   final DateTime? reservedUntil;
 
+  /// Seating capacity of the table (from backend `capacity` column).
+  @override
+  final int? capacity;
+
   @override
   String toString() {
-    return 'Table(id: $id, tableNumber: $tableNumber, sectionLabel: $sectionLabel, status: $status, currentOrderId: $currentOrderId, qrUrl: $qrUrl, reservationName: $reservationName, reservationPhone: $reservationPhone, reservedFor: $reservedFor, reservedUntil: $reservedUntil)';
+    return 'Table(id: $id, tableNumber: $tableNumber, sectionLabel: $sectionLabel, status: $status, currentOrderId: $currentOrderId, qrUrl: $qrUrl, reservationName: $reservationName, reservationPhone: $reservationPhone, partySize: $partySize, reservedFor: $reservedFor, reservedUntil: $reservedUntil, capacity: $capacity)';
   }
 
   @override
@@ -320,10 +358,14 @@ class _$TableImpl implements _Table {
                 other.reservationName == reservationName) &&
             (identical(other.reservationPhone, reservationPhone) ||
                 other.reservationPhone == reservationPhone) &&
+            (identical(other.partySize, partySize) ||
+                other.partySize == partySize) &&
             (identical(other.reservedFor, reservedFor) ||
                 other.reservedFor == reservedFor) &&
             (identical(other.reservedUntil, reservedUntil) ||
-                other.reservedUntil == reservedUntil));
+                other.reservedUntil == reservedUntil) &&
+            (identical(other.capacity, capacity) ||
+                other.capacity == capacity));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -338,8 +380,10 @@ class _$TableImpl implements _Table {
       qrUrl,
       reservationName,
       reservationPhone,
+      partySize,
       reservedFor,
-      reservedUntil);
+      reservedUntil,
+      capacity);
 
   /// Create a copy of Table
   /// with the given fields replaced by the non-null parameter values.
@@ -359,17 +403,18 @@ class _$TableImpl implements _Table {
 
 abstract class _Table implements Table {
   const factory _Table(
-          {required final String id,
-          @JsonKey(name: 'table_number') required final String tableNumber,
-          @JsonKey(name: 'section_label') final String? sectionLabel,
-          required final TableStatus status,
-          @JsonKey(name: 'current_order_id') final String? currentOrderId,
-          @JsonKey(name: 'qr_url') final String? qrUrl,
-          @JsonKey(name: 'reservation_name') final String? reservationName,
-          @JsonKey(name: 'reservation_phone') final String? reservationPhone,
-          @JsonKey(name: 'reserved_for') final DateTime? reservedFor,
-          @JsonKey(name: 'reserved_until') final DateTime? reservedUntil}) =
-      _$TableImpl;
+      {required final String id,
+      @JsonKey(name: 'table_number') required final String tableNumber,
+      @JsonKey(name: 'section_label') final String? sectionLabel,
+      required final TableStatus status,
+      @JsonKey(name: 'current_order_id') final String? currentOrderId,
+      @JsonKey(name: 'qr_url') final String? qrUrl,
+      @JsonKey(name: 'reservation_name') final String? reservationName,
+      @JsonKey(name: 'reservation_phone') final String? reservationPhone,
+      @JsonKey(name: 'party_size') final int? partySize,
+      @JsonKey(name: 'reserved_for') final DateTime? reservedFor,
+      @JsonKey(name: 'reserved_until') final DateTime? reservedUntil,
+      final int? capacity}) = _$TableImpl;
 
   factory _Table.fromJson(Map<String, dynamic> json) = _$TableImpl.fromJson;
 
@@ -408,11 +453,18 @@ abstract class _Table implements Table {
   @JsonKey(name: 'reservation_phone')
   String? get reservationPhone;
   @override
+  @JsonKey(name: 'party_size')
+  int? get partySize;
+  @override
   @JsonKey(name: 'reserved_for')
   DateTime? get reservedFor;
   @override
   @JsonKey(name: 'reserved_until')
   DateTime? get reservedUntil;
+
+  /// Seating capacity of the table (from backend `capacity` column).
+  @override
+  int? get capacity;
 
   /// Create a copy of Table
   /// with the given fields replaced by the non-null parameter values.

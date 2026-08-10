@@ -45,31 +45,25 @@ class TableRepository {
       // - table_number comes as int → convert to String
       // - active_order_id → current_order_id
       // - qr_code_url → qr_url
-      // - reserved_for / reserved_until: strip any timezone designator
-      //   so DateTime.parse reads the clock components as-is (matching
-      //   the local-as-UTC format produced by toLocalIso8601String).
+      // - reserved_for / reserved_until: parse as real instants (UTC Z or offset)
       final normalised = <String, dynamic>{
         ...m,
         'table_number': m['table_number']?.toString() ?? '',
         'current_order_id': m['current_order_id'] ?? m['active_order_id'],
         'qr_url': m['qr_url'] ?? m['qr_code_url'],
+        if (m['capacity'] != null) 'capacity': m['capacity'],
+        if (m['party_size'] != null) 'party_size': m['party_size'],
         if (m['reserved_for'] is String)
-          'reserved_for': _stripTimeZone(m['reserved_for'] as String),
+          'reserved_for':
+              parseLocalIso8601(m['reserved_for'] as String).toIso8601String(),
         if (m['reserved_until'] is String)
-          'reserved_until': _stripTimeZone(m['reserved_until'] as String),
+          'reserved_until':
+              parseLocalIso8601(m['reserved_until'] as String).toIso8601String(),
       };
       return Table.fromJson(normalised);
     } catch (_) {
       return null;
     }
-  }
-
-  /// Removes a trailing `Z` or `+HH:MM`/`-HH:MM` designator so the
-  /// remaining string is parsed as a *local* DateTime by [DateTime.parse].
-  String _stripTimeZone(String iso) {
-    return iso
-        .replaceFirst(RegExp(r'Z$'), '')
-        .replaceFirst(RegExp(r'[+-]\d{2}:\d{2}$'), '');
   }
 
   Future<Table> updateTableStatus(String id, TableStatus status,
@@ -132,10 +126,12 @@ class TableRepository {
       'qr_url': m['qr_url'] ?? m['qr_code_url'],
     };
     if (m['reserved_for'] is String) {
-      out['reserved_for'] = _stripTimeZone(m['reserved_for'] as String);
+      out['reserved_for'] =
+          parseLocalIso8601(m['reserved_for'] as String).toIso8601String();
     }
     if (m['reserved_until'] is String) {
-      out['reserved_until'] = _stripTimeZone(m['reserved_until'] as String);
+      out['reserved_until'] =
+          parseLocalIso8601(m['reserved_until'] as String).toIso8601String();
     }
     return out;
   }

@@ -31,27 +31,46 @@ final class Unauthenticated extends AuthState {
 /// The Router should redirect to `/restaurant-selector`
 /// (Requirements 2.2, 3.x).
 final class BaseAuthenticated extends AuthState {
-  const BaseAuthenticated();
+  const BaseAuthenticated({this.displayName = 'User'});
+
+  final String displayName;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is BaseAuthenticated &&
+          runtimeType == other.runtimeType &&
+          displayName == other.displayName;
+
+  @override
+  int get hashCode => displayName.hashCode;
 }
 
 /// Tenant_JWT is stored and valid; [role] drives role-based navigation.
 ///
 /// The Router should redirect to `/dashboard` (Requirements 2.8, 16.1, 16.2).
 final class TenantAuthenticated extends AuthState {
-  const TenantAuthenticated({required this.role});
+  const TenantAuthenticated({
+    required this.role,
+    required this.displayName,
+  });
 
   /// The [StaffRole] extracted from the Tenant_JWT `role` claim.
   final StaffRole role;
+
+  /// Human-readable name from the JWT `full_name` claim.
+  final String displayName;
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is TenantAuthenticated &&
           runtimeType == other.runtimeType &&
-          role == other.role;
+          role == other.role &&
+          displayName == other.displayName;
 
   @override
-  int get hashCode => role.hashCode;
+  int get hashCode => Object.hash(role, displayName);
 }
 
 /// Terminal error state carrying a human-readable [message].

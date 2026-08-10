@@ -127,6 +127,11 @@ class SecureTokenRepository implements TokenRepository {
     return _extractClaim<String>(token, 'role');
   }
 
+  /// Decodes the JWT payload section and extracts the `full_name` claim.
+  static String? extractFullName(String token) {
+    return _extractClaim<String>(token, 'full_name');
+  }
+
   /// Decodes the JWT payload and extracts `restaurant_id`.
   static String? extractRestaurantId(String token) {
     return _extractClaim<String>(token, 'restaurant_id');

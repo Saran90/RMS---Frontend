@@ -71,7 +71,7 @@ class _StaffViewState extends State<_StaffView>
     }
   }
 
-  /// Returns true when the current user is owner or manager (Req 12.9).
+  /// Returns true when the current user is owner or manager.
   bool _canManage(BuildContext context) {
     final authState = context.read<AuthBloc>().state;
     if (authState is TenantAuthenticated) {
@@ -81,7 +81,16 @@ class _StaffViewState extends State<_StaffView>
     return false;
   }
 
-  void _showInviteSheet(BuildContext context) {
+  /// Only owners can create staff accounts.
+  bool _canCreateStaff(BuildContext context) {
+    final authState = context.read<AuthBloc>().state;
+    if (authState is TenantAuthenticated) {
+      return authState.role == StaffRole.owner;
+    }
+    return false;
+  }
+
+  void _showCreateStaffSheet(BuildContext context) {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -90,7 +99,7 @@ class _StaffViewState extends State<_StaffView>
       ),
       builder: (_) => BlocProvider.value(
         value: context.read<StaffBloc>(),
-        child: _InviteStaffSheet(parentContext: context),
+        child: _CreateStaffSheet(parentContext: context),
       ),
     );
   }
@@ -112,9 +121,60 @@ class _StaffViewState extends State<_StaffView>
     );
   }
 
+  Future<void> _showStaffCreatedDialog(
+    BuildContext context,
+    StaffCreated state,
+  ) async {
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Staff account created'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '${state.createdMember.fullName} can now sign in.',
+              style: Theme.of(ctx).textTheme.bodyMedium,
+            ),
+            const SizedBox(height: AppTheme.spacing16),
+            Text('Username', style: Theme.of(ctx).textTheme.labelMedium),
+            const SizedBox(height: 4),
+            SelectableText(
+              state.createdMember.username,
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: AppTheme.spacing12),
+            Text('Password', style: Theme.of(ctx).textTheme.labelMedium),
+            const SizedBox(height: 4),
+            SelectableText(
+              state.loginPassword,
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: AppTheme.spacing12),
+            Text(
+              'Share these credentials securely. The password will not be shown again.',
+              style: Theme.of(ctx)
+                  .textTheme
+                  .bodySmall
+                  ?.copyWith(color: AppTheme.mutedText),
+            ),
+          ],
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Done'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final canManage = _canManage(context);
+    final canCreateStaff = _canCreateStaff(context);
 
     return Scaffold(
       backgroundColor: AppTheme.surface,
@@ -146,11 +206,11 @@ class _StaffViewState extends State<_StaffView>
       ),
       floatingActionButton: BlocBuilder<StaffBloc, StaffState>(
         builder: (context, state) {
-          if (_tabController.index == 0 && canManage) {
+          if (_tabController.index == 0 && canCreateStaff) {
             return FloatingActionButton.extended(
-              onPressed: () => _showInviteSheet(context),
+              onPressed: () => _showCreateStaffSheet(context),
               icon: const Icon(Icons.person_add_outlined),
-              label: const Text('Invite Staff'),
+              label: const Text('Add Staff'),
               backgroundColor: AppTheme.primary,
               foregroundColor: AppTheme.onPrimary,
             );
@@ -170,21 +230,20 @@ class _StaffViewState extends State<_StaffView>
       body: BlocConsumer<StaffBloc, StaffState>(
         listener: (context, state) {
           if (state is StaffLoaded ||
-              state is StaffInviteSent ||
+              state is StaffCreated ||
               state is StaffOperationError) {
-            // Cache staff list whenever we get it
             if (state is StaffLoaded) _cachedStaff = state.staff;
-            if (state is StaffInviteSent) _cachedStaff = state.staff;
+            if (state is StaffCreated) _cachedStaff = state.staff;
             if (state is StaffOperationError) _cachedStaff = state.staff;
           }
           if (state is StaffShiftsLoaded) {
             _cachedShifts = state.shifts;
           }
-          // Show success snackbar after invite (Req 12.3)
-          if (state is StaffInviteSent) {
+          if (state is StaffCreated) {
+            _showStaffCreatedDialog(context, state);
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                content: Text('Invitation sent successfully.'),
+                content: Text('Staff member created successfully.'),
                 backgroundColor: AppTheme.success,
               ),
             );
@@ -202,7 +261,7 @@ class _StaffViewState extends State<_StaffView>
         builder: (context, state) {
           // Update caches from current state synchronously
           if (state is StaffLoaded) _cachedStaff = state.staff;
-          if (state is StaffInviteSent) _cachedStaff = state.staff;
+          if (state is StaffCreated) _cachedStaff = state.staff;
           if (state is StaffOperationError) _cachedStaff = state.staff;
           if (state is StaffShiftsLoaded) _cachedShifts = state.shifts;
 
@@ -225,7 +284,7 @@ class _StaffViewState extends State<_StaffView>
     return switch (state) {
       StaffInitial() || StaffLoading() => _LoadingView(),
       StaffLoaded(:final staff) ||
-      StaffInviteSent(:final staff) ||
+      StaffCreated(:final staff) ||
       StaffOperationError(:final staff) =>
         _StaffListView(staff: staff, canManage: canManage),
       StaffError(:final message) => ErrorStateWidget(
@@ -430,18 +489,28 @@ class _StaffTile extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    member.email,
+                    member.username,
                     style: Theme.of(context)
                         .textTheme
                         .bodySmall
                         ?.copyWith(color: AppTheme.mutedText),
                   ),
+                  if (member.email != null && member.email!.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      member.email!,
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(color: AppTheme.mutedText),
+                    ),
+                  ],
                   const SizedBox(height: AppTheme.spacing4),
                   Row(
                     children: [
                       _RoleBadge(role: member.role),
                       const SizedBox(width: AppTheme.spacing8),
-                      _StatusChip(isActive: member.isActive),
+                      _StatusChip(status: member.status),
                     ],
                   ),
                 ],
@@ -501,14 +570,18 @@ class _RoleBadge extends StatelessWidget {
 // ── Active/inactive status chip ────────────────────────────────────────────────
 
 class _StatusChip extends StatelessWidget {
-  const _StatusChip({required this.isActive});
+  const _StatusChip({required this.status});
 
-  final bool isActive;
+  final String status;
 
   @override
   Widget build(BuildContext context) {
-    final color = isActive ? AppTheme.success : AppTheme.mutedText;
-    final label = isActive ? 'Active' : 'Inactive';
+    final (label, color) = switch (status) {
+      'active' => ('Active', AppTheme.success),
+      'inactive' => ('Inactive', AppTheme.mutedText),
+      'invited' => ('Invited', AppTheme.warning),
+      _ => (status, AppTheme.mutedText),
+    };
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -528,27 +601,30 @@ class _StatusChip extends StatelessWidget {
   }
 }
 
-// ── Invite Staff bottom sheet ──────────────────────────────────────────────────
+// ── Create Staff bottom sheet ──────────────────────────────────────────────────
 
-class _InviteStaffSheet extends StatefulWidget {
-  const _InviteStaffSheet({required this.parentContext});
+class _CreateStaffSheet extends StatefulWidget {
+  const _CreateStaffSheet({required this.parentContext});
 
-  /// The parent screen context, used to show the success SnackBar after the
-  /// sheet closes (Req 12.3).
   final BuildContext parentContext;
 
   @override
-  State<_InviteStaffSheet> createState() => _InviteStaffSheetState();
+  State<_CreateStaffSheet> createState() => _CreateStaffSheetState();
 }
 
-class _InviteStaffSheetState extends State<_InviteStaffSheet> {
+class _CreateStaffSheetState extends State<_CreateStaffSheet> {
   final _formKey = GlobalKey<FormState>();
+  final _fullNameController = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _usernameController = TextEditingController();
   final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
   StaffRole _selectedRole = StaffRole.waiter;
   String? _serverError;
+  bool _isSubmitting = false;
 
-  // Roles that can be invited (Req 12.3) — not owner/manager
-  static const _invitableRoles = [
+  static const _creatableRoles = [
+    StaffRole.manager,
     StaffRole.waiter,
     StaffRole.chef,
     StaffRole.cashier,
@@ -556,21 +632,35 @@ class _InviteStaffSheetState extends State<_InviteStaffSheet> {
   ];
 
   static final _emailRegExp = RegExp(r'^[\w.+-]+@[\w-]+\.[\w.]+$');
+  static final _usernameRegExp = RegExp(r'^[a-zA-Z0-9._-]{3,50}$');
+  static final _phoneRegExp = RegExp(r'^\d{10,15}$');
 
   @override
   void dispose() {
+    _fullNameController.dispose();
+    _phoneController.dispose();
+    _usernameController.dispose();
     _emailController.dispose();
+    _passwordController.dispose();
     super.dispose();
   }
 
   void _submit() {
     setState(() => _serverError = null);
     if (!(_formKey.currentState?.validate() ?? false)) return;
+    setState(() => _isSubmitting = true);
 
+    final password = _passwordController.text.trim();
     context.read<StaffBloc>().add(
-          StaffInviteRequested(
-            email: _emailController.text.trim(),
+          StaffCreateRequested(
+            fullName: _fullNameController.text.trim(),
+            phoneNumber: _phoneController.text.trim(),
+            username: _usernameController.text.trim(),
             role: _selectedRole.jsonValue,
+            email: _emailController.text.trim().isEmpty
+                ? null
+                : _emailController.text.trim(),
+            password: password.isEmpty ? null : password,
           ),
         );
   }
@@ -579,19 +669,19 @@ class _InviteStaffSheetState extends State<_InviteStaffSheet> {
   Widget build(BuildContext context) {
     return BlocConsumer<StaffBloc, StaffState>(
       listener: (context, state) {
-        if (state is StaffInviteSent) {
-          // Close the sheet — the parent listener shows the success SnackBar
+        if (state is StaffCreated) {
+          setState(() => _isSubmitting = false);
           Navigator.of(context).pop();
         }
         if (state is StaffOperationError) {
-          // Show inline error while form is open (Req 12.5)
-          setState(() => _serverError = state.message);
+          setState(() {
+            _isSubmitting = false;
+            _serverError = state.message;
+          });
         }
       },
       builder: (context, state) {
-        final isLoading = state is StaffLoading;
-
-        return Padding(
+        return SingleChildScrollView(
           padding: EdgeInsets.only(
             left: AppTheme.spacing24,
             right: AppTheme.spacing24,
@@ -605,12 +695,11 @@ class _InviteStaffSheetState extends State<_InviteStaffSheet> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Header
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      'Invite Staff Member',
+                      'Add Staff Member',
                       style: Theme.of(context).textTheme.headlineSmall,
                     ),
                     IconButton(
@@ -620,36 +709,63 @@ class _InviteStaffSheetState extends State<_InviteStaffSheet> {
                   ],
                 ),
                 const SizedBox(height: AppTheme.spacing16),
-
-                // Email field (Req 12.4 — validate before HTTP call)
                 TextFormField(
-                  controller: _emailController,
-                  keyboardType: TextInputType.emailAddress,
+                  controller: _fullNameController,
+                  textCapitalization: TextCapitalization.words,
                   decoration: const InputDecoration(
-                    labelText: 'Email address',
-                    hintText: 'staff@example.com',
-                    prefixIcon: Icon(Icons.email_outlined),
+                    labelText: 'Full name *',
+                    prefixIcon: Icon(Icons.person_outlined),
                   ),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Email is required';
-                    }
-                    if (!_emailRegExp.hasMatch(value.trim())) {
-                      return 'Enter a valid email address';
+                  validator: (v) {
+                    final value = v?.trim() ?? '';
+                    if (value.length < 2 || value.length > 100) {
+                      return 'Enter 2–100 characters';
                     }
                     return null;
                   },
                 ),
                 const SizedBox(height: AppTheme.spacing16),
-
-                // Role dropdown
+                TextFormField(
+                  controller: _phoneController,
+                  keyboardType: TextInputType.phone,
+                  decoration: const InputDecoration(
+                    labelText: 'Phone number *',
+                    hintText: '9876543210',
+                    prefixIcon: Icon(Icons.phone_outlined),
+                  ),
+                  validator: (v) {
+                    final value = v?.trim() ?? '';
+                    if (!_phoneRegExp.hasMatch(value)) {
+                      return 'Enter 10–15 digits';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: AppTheme.spacing16),
+                TextFormField(
+                  controller: _usernameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Username *',
+                    hintText: 'john.smith',
+                    prefixIcon: Icon(Icons.badge_outlined),
+                    helperText: 'Staff sign in with this username',
+                  ),
+                  validator: (v) {
+                    final value = v?.trim() ?? '';
+                    if (!_usernameRegExp.hasMatch(value)) {
+                      return '3–50 chars: letters, numbers, . _ -';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: AppTheme.spacing16),
                 DropdownButtonFormField<StaffRole>(
                   initialValue: _selectedRole,
                   decoration: const InputDecoration(
-                    labelText: 'Role',
-                    prefixIcon: Icon(Icons.badge_outlined),
+                    labelText: 'Role *',
+                    prefixIcon: Icon(Icons.work_outline),
                   ),
-                  items: _invitableRoles
+                  items: _creatableRoles
                       .map(
                         (r) => DropdownMenuItem(
                           value: r,
@@ -660,27 +776,55 @@ class _InviteStaffSheetState extends State<_InviteStaffSheet> {
                   onChanged: (v) {
                     if (v != null) setState(() => _selectedRole = v);
                   },
-                  validator: (v) => v == null ? 'Please select a role' : null,
                 ),
-
-                // Server-side error (Req 12.5)
+                const SizedBox(height: AppTheme.spacing16),
+                TextFormField(
+                  controller: _emailController,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: const InputDecoration(
+                    labelText: 'Email (optional)',
+                    hintText: 'john@example.com',
+                    prefixIcon: Icon(Icons.email_outlined),
+                  ),
+                  validator: (v) {
+                    final value = v?.trim() ?? '';
+                    if (value.isEmpty) return null;
+                    if (!_emailRegExp.hasMatch(value)) {
+                      return 'Enter a valid email address';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: AppTheme.spacing16),
+                TextFormField(
+                  controller: _passwordController,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Password (optional)',
+                    hintText: StaffBloc.defaultStaffPassword,
+                    prefixIcon: Icon(Icons.lock_outlined),
+                    helperText:
+                        'Leave blank to use default: ${StaffBloc.defaultStaffPassword}',
+                  ),
+                  validator: (v) {
+                    final value = v ?? '';
+                    if (value.isNotEmpty && value.length < 8) {
+                      return 'Minimum 8 characters';
+                    }
+                    return null;
+                  },
+                ),
                 if (_serverError != null) ...[
                   const SizedBox(height: AppTheme.spacing12),
                   Text(
                     _serverError!,
-                    style: const TextStyle(
-                      color: AppTheme.error,
-                      fontSize: 13,
-                    ),
+                    style: const TextStyle(color: AppTheme.error, fontSize: 13),
                   ),
                 ],
-
                 const SizedBox(height: AppTheme.spacing24),
-
-                // Submit button
                 FilledButton(
-                  onPressed: isLoading ? null : _submit,
-                  child: isLoading
+                  onPressed: _isSubmitting ? null : _submit,
+                  child: _isSubmitting
                       ? const SizedBox(
                           height: 20,
                           width: 20,
@@ -689,7 +833,7 @@ class _InviteStaffSheetState extends State<_InviteStaffSheet> {
                             color: AppTheme.onPrimary,
                           ),
                         )
-                      : const Text('Send Invitation'),
+                      : const Text('Create Staff'),
                 ),
               ],
             ),
@@ -806,7 +950,7 @@ class _ShiftSchedulingViewState extends State<_ShiftSchedulingView> {
               ),
               const SizedBox(height: AppTheme.spacing4),
               Text(
-                'Invite staff members from the Staff tab first.',
+                'Add staff members from the Staff tab first.',
                 style: Theme.of(context)
                     .textTheme
                     .bodySmall
@@ -1592,7 +1736,7 @@ class _ShiftFormSheetWithStaffPickerState
                     const SizedBox(width: AppTheme.spacing8),
                     Expanded(
                       child: Text(
-                        'No staff members available. Invite staff members from the Staff tab first.',
+                        'No staff members available. Add staff from the Staff tab first.',
                         style: TextStyle(
                           color: AppTheme.warning.withValues(alpha: 0.9),
                           fontSize: 13,

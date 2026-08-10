@@ -15,12 +15,14 @@ _$TableImpl _$$TableImplFromJson(Map<String, dynamic> json) => _$TableImpl(
       qrUrl: json['qr_url'] as String?,
       reservationName: json['reservation_name'] as String?,
       reservationPhone: json['reservation_phone'] as String?,
+      partySize: (json['party_size'] as num?)?.toInt(),
       reservedFor: json['reserved_for'] == null
           ? null
           : DateTime.parse(json['reserved_for'] as String),
       reservedUntil: json['reserved_until'] == null
           ? null
           : DateTime.parse(json['reserved_until'] as String),
+      capacity: (json['capacity'] as num?)?.toInt(),
     );
 
 Map<String, dynamic> _$$TableImplToJson(_$TableImpl instance) =>
@@ -33,8 +35,10 @@ Map<String, dynamic> _$$TableImplToJson(_$TableImpl instance) =>
       'qr_url': instance.qrUrl,
       'reservation_name': instance.reservationName,
       'reservation_phone': instance.reservationPhone,
+      'party_size': instance.partySize,
       'reserved_for': instance.reservedFor?.toIso8601String(),
       'reserved_until': instance.reservedUntil?.toIso8601String(),
+      'capacity': instance.capacity,
     };
 
 const _$TableStatusEnumMap = {

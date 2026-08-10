@@ -22,6 +22,28 @@ final class ReservationsRefreshRequested extends ReservationEvent {
   const ReservationsRefreshRequested();
 }
 
+/// Create a new reservation for an available table.
+final class ReservationCreateRequested extends ReservationEvent {
+  const ReservationCreateRequested({
+    required this.tableId,
+    required this.guestName,
+    required this.guestPhone,
+    required this.reservedFor,
+    required this.reservedUntil,
+    this.partySize = 2,
+    this.additionalTableIds = const [],
+    this.notes,
+  });
+  final String tableId;
+  final String guestName;
+  final String guestPhone;
+  final DateTime reservedFor;
+  final DateTime reservedUntil;
+  final int partySize;
+  final List<String> additionalTableIds;
+  final String? notes;
+}
+
 /// Edit a reservation's core fields (name, phone, party size, time window).
 final class ReservationEditRequested extends ReservationEvent {
   const ReservationEditRequested({
@@ -40,6 +62,12 @@ final class ReservationEditRequested extends ReservationEvent {
   final DateTime? reservedFor;
   final DateTime? reservedUntil;
   final String? notes;
+}
+
+/// Release a reservation early and free the table.
+final class ReservationReleaseRequested extends ReservationEvent {
+  const ReservationReleaseRequested({required this.id});
+  final String id;
 }
 
 /// Disable a reservation (soft-delete; preserved for audit).
@@ -72,11 +100,15 @@ final class ReservationLoading extends ReservationState {
 final class ReservationLoaded extends ReservationState {
   const ReservationLoaded({
     required this.reservations,
+    this.history = const [],
     this.statusFilter,
     this.refreshError,
     this.lastDisableId,
+    this.lastCreateId,
+    this.lastReleaseId,
   });
   final List<Reservation> reservations;
+  final List<Reservation> history;
   final ReservationStatus? statusFilter;
   final String? refreshError;
 
@@ -84,23 +116,39 @@ final class ReservationLoaded extends ReservationState {
   /// success snackbar in the UI without having to thread an event back.
   final String? lastDisableId;
 
+  /// ID of the most recently created reservation.
+  final String? lastCreateId;
+
+  /// ID of the most recently released reservation.
+  final String? lastReleaseId;
+
   ReservationLoaded copyWith({
     List<Reservation>? reservations,
+    List<Reservation>? history,
     ReservationStatus? statusFilter,
     bool clearStatusFilter = false,
     String? refreshError,
     bool clearRefreshError = false,
     String? lastDisableId,
     bool clearLastDisableId = false,
+    String? lastCreateId,
+    bool clearLastCreateId = false,
+    String? lastReleaseId,
+    bool clearLastReleaseId = false,
   }) {
     return ReservationLoaded(
       reservations: reservations ?? this.reservations,
+      history: history ?? this.history,
       statusFilter:
           clearStatusFilter ? null : (statusFilter ?? this.statusFilter),
       refreshError:
           clearRefreshError ? null : (refreshError ?? this.refreshError),
       lastDisableId:
           clearLastDisableId ? null : (lastDisableId ?? this.lastDisableId),
+      lastCreateId:
+          clearLastCreateId ? null : (lastCreateId ?? this.lastCreateId),
+      lastReleaseId:
+          clearLastReleaseId ? null : (lastReleaseId ?? this.lastReleaseId),
     );
   }
 }
@@ -127,12 +175,21 @@ class ReservationBloc extends Bloc<ReservationEvent, ReservationState> {
         super(const ReservationInitial()) {
     on<ReservationsLoadRequested>(_onLoad);
     on<ReservationsRefreshRequested>(_onRefresh);
+    on<ReservationCreateRequested>(_onCreate);
     on<ReservationEditRequested>(_onEdit);
+    on<ReservationReleaseRequested>(_onRelease);
     on<ReservationDisableRequested>(_onDisable);
     on<ReservationEnableRequested>(_onEnable);
   }
 
   final ReservationRepository _repo;
+
+  Future<({List<Reservation> reservations, List<Reservation> history})>
+      _loadLists(ReservationStatus? filter) async {
+    final reservations = await _repo.getReservations(status: filter);
+    final history = await _repo.getReservationHistory();
+    return (reservations: reservations, history: history);
+  }
 
   Future<void> _onLoad(
     ReservationsLoadRequested e,
@@ -140,17 +197,16 @@ class ReservationBloc extends Bloc<ReservationEvent, ReservationState> {
   ) async {
     emit(const ReservationLoading());
     try {
-      final list = await _repo.getReservations(
-        status: e.statusFilter,
-      );
+      final data = await _loadLists(e.statusFilter);
       // If we're not including disabled, filter client-side too.
       final filtered = e.includeDisabled
-          ? list
-          : list
+          ? data.reservations
+          : data.reservations
               .where((r) => r.status != ReservationStatus.disabled)
               .toList();
       emit(ReservationLoaded(
         reservations: filtered,
+        history: data.history,
         statusFilter: e.statusFilter,
       ));
     } on ApiException catch (ex) {
@@ -168,9 +224,10 @@ class ReservationBloc extends Bloc<ReservationEvent, ReservationState> {
         ? (state as ReservationLoaded).statusFilter
         : null;
     try {
-      final list = await _repo.getReservations(status: filter);
+      final data = await _loadLists(filter);
       emit(ReservationLoaded(
-        reservations: list,
+        reservations: data.reservations,
+        history: data.history,
         statusFilter: filter,
       ));
     } on ApiException catch (ex) {
@@ -185,6 +242,47 @@ class ReservationBloc extends Bloc<ReservationEvent, ReservationState> {
       final current = state is ReservationLoaded
           ? (state as ReservationLoaded).reservations
           : <Reservation>[];
+      emit(ReservationOperationError(
+        reservations: current,
+        message: ex.toString(),
+      ));
+    }
+  }
+
+  Future<void> _onCreate(
+    ReservationCreateRequested e,
+    Emitter<ReservationState> emit,
+  ) async {
+    final filter = state is ReservationLoaded
+        ? (state as ReservationLoaded).statusFilter
+        : null;
+  final current = state is ReservationLoaded
+      ? (state as ReservationLoaded).reservations
+      : <Reservation>[];
+    try {
+      final created = await _repo.createReservation(
+        tableId: e.tableId,
+        guestName: e.guestName,
+        guestPhone: e.guestPhone,
+        reservedFor: e.reservedFor,
+        reservedUntil: e.reservedUntil,
+        partySize: e.partySize,
+        additionalTableIds: e.additionalTableIds,
+        notes: e.notes,
+      );
+      final data = await _loadLists(filter);
+      emit(ReservationLoaded(
+        reservations: data.reservations,
+        history: data.history,
+        statusFilter: filter,
+        lastCreateId: created.id,
+      ));
+    } on ApiException catch (ex) {
+      emit(ReservationOperationError(
+        reservations: current,
+        message: ex.message,
+      ));
+    } catch (ex) {
       emit(ReservationOperationError(
         reservations: current,
         message: ex.toString(),
@@ -230,6 +328,38 @@ class ReservationBloc extends Bloc<ReservationEvent, ReservationState> {
     }
   }
 
+  Future<void> _onRelease(
+    ReservationReleaseRequested e,
+    Emitter<ReservationState> emit,
+  ) async {
+    final filter = state is ReservationLoaded
+        ? (state as ReservationLoaded).statusFilter
+        : null;
+    final current = state is ReservationLoaded
+        ? (state as ReservationLoaded).reservations
+        : <Reservation>[];
+    try {
+      await _repo.releaseReservation(e.id);
+      final data = await _loadLists(filter);
+      emit(ReservationLoaded(
+        reservations: data.reservations,
+        history: data.history,
+        statusFilter: filter,
+        lastReleaseId: e.id,
+      ));
+    } on ApiException catch (ex) {
+      emit(ReservationOperationError(
+        reservations: current,
+        message: ex.message,
+      ));
+    } catch (ex) {
+      emit(ReservationOperationError(
+        reservations: current,
+        message: ex.toString(),
+      ));
+    }
+  }
+
   Future<void> _onDisable(
     ReservationDisableRequested e,
     Emitter<ReservationState> emit,
@@ -238,14 +368,15 @@ class ReservationBloc extends Bloc<ReservationEvent, ReservationState> {
         ? (state as ReservationLoaded).reservations
         : <Reservation>[];
     try {
-      final updated = await _repo.disableReservation(e.id, reason: e.reason);
-      final newList =
-          current.map((r) => r.id == e.id ? updated : r).toList();
+      await _repo.releaseReservation(e.id);
+      final filter = state is ReservationLoaded
+          ? (state as ReservationLoaded).statusFilter
+          : null;
+      final data = await _loadLists(filter);
       emit(ReservationLoaded(
-        reservations: newList,
-        statusFilter: state is ReservationLoaded
-            ? (state as ReservationLoaded).statusFilter
-            : null,
+        reservations: data.reservations,
+        history: data.history,
+        statusFilter: filter,
         lastDisableId: e.id,
       ));
     } on ApiException catch (ex) {

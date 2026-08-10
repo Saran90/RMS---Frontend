@@ -66,6 +66,7 @@ _$OrderImpl _$$OrderImplFromJson(Map<String, dynamic> json) => _$OrderImpl(
           ? 0.0
           : const _DoubleConverter().fromJson(json['subtotal']),
       tableId: json['table_id'] as String?,
+      tableNumber: _tableNumberFromJson(json['table_number']),
       customerName: json['customer_name'] as String?,
       customerPhone: json['customer_phone'] as String?,
       deliveryAddress: json['delivery_address'] as String?,
@@ -81,6 +82,7 @@ Map<String, dynamic> _$$OrderImplToJson(_$OrderImpl instance) =>
       'items': instance.items.map((e) => e.toJson()).toList(),
       'subtotal': const _DoubleConverter().toJson(instance.subtotal),
       'table_id': instance.tableId,
+      'table_number': instance.tableNumber,
       'customer_name': instance.customerName,
       'customer_phone': instance.customerPhone,
       'delivery_address': instance.deliveryAddress,

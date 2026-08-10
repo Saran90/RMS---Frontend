@@ -4,26 +4,26 @@
 import 'package:auth/auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:go_router/go_router.dart';
-import 'package:staff_portal/router/app_router.dart';
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 
-const Color _bg = Color(0xFFF5F0E8);
+const Color _creamBg = Color(0xFFF5F0E8);
 const Color _cardBg = Color(0xFFFFFFFF);
-const Color _labelColor = Color(0xFF1A1208);
+const Color _cardBorder = Color(0xFFE8E0D0);
+const Color _titleColor = Color(0xFF1A1208);
 const Color _hintColor = Color(0xFFAA9880);
-const Color _inputBorder = Color(0xFFE0D8CC);
-const Color _inputBg = Color(0xFFFFFFFF);
-const Color _accentOrange = Color(0xFFBF4010);
-const Color _accentOrangeLight = Color(0xFFF5F0E8);
-const Color _tabInactive = Color(0xFFD8CEBF);
 const Color _mutedText = Color(0xFF9A8870);
+const Color _accentOrange = Color(0xFFBF4010);
+const Color _accentLight = Color(0xFFF5EDE0);
 const Color _errorRed = Color(0xFFDC2626);
 
-/// Login screen — redesigned to match the TableFlow warm-cream theme.
-///
-/// Keeps all existing auth logic (Requirements 2.2, 2.3) unchanged.
+const Color _brandBg = Color(0xFF1A0F00);
+const Color _brandBorder = Color(0xFF2E1A06);
+const Color _brandText = Color(0xFFF5E6D0);
+const Color _brandMuted = Color(0xFF9A7A5A);
+const Color _brandOrange = Color(0xFFE87020);
+
+/// Unified sign-in / owner registration screen.
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -32,18 +32,15 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  // 0 = Sign In, 1 = Create Account
   int _tabIndex = 0;
 
-  // ── Sign In fields ──────────────────────────────────────────────────────────
   final _signInFormKey = GlobalKey<FormState>();
-  final _emailController = TextEditingController();
+  final _loginIdController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
   bool _isSubmitting = false;
   String? _errorMessage;
 
-  // ── Create Account fields ───────────────────────────────────────────────────
   final _registerFormKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _regEmailController = TextEditingController();
@@ -55,7 +52,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   void dispose() {
-    _emailController.dispose();
+    _loginIdController.dispose();
     _passwordController.dispose();
     _nameController.dispose();
     _regEmailController.dispose();
@@ -64,7 +61,12 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  // ── Validators ──────────────────────────────────────────────────────────────
+  String? _validateLoginId(String? v) {
+    if (v == null || v.trim().isEmpty) {
+      return 'Email or username is required';
+    }
+    return null;
+  }
 
   String? _validateEmail(String? v) {
     if (v == null || v.trim().isEmpty) return 'Email is required';
@@ -90,18 +92,17 @@ class _LoginScreenState extends State<LoginScreen> {
     return null;
   }
 
-  // ── Submit: Sign In ─────────────────────────────────────────────────────────
-
   void _submitSignIn() {
     setState(() => _errorMessage = null);
     if (!_signInFormKey.currentState!.validate()) return;
+    final loginId = _loginIdController.text.trim();
+    final isEmail = loginId.contains('@');
     context.read<AuthBloc>().add(LoginRequested(
-          email: _emailController.text.trim(),
+          email: isEmail ? loginId : null,
+          username: isEmail ? null : loginId,
           password: _passwordController.text,
         ));
   }
-
-  // ── Submit: Register ────────────────────────────────────────────────────────
 
   void _submitRegister() {
     setState(() => _registerError = null);
@@ -113,8 +114,6 @@ class _LoginScreenState extends State<LoginScreen> {
           phoneNumber: _phoneController.text.trim(),
         ));
   }
-
-  // ── BlocListener ────────────────────────────────────────────────────────────
 
   void _onAuthState(BuildContext context, AuthState state) {
     if (state is AuthLoading) {
@@ -141,13 +140,14 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (_tabIndex == 0) {
         setState(() => _errorMessage =
-            isCredentialError ? 'Invalid email or password' : msg);
+            isCredentialError
+                ? 'Invalid email, username, or password'
+                : msg);
       } else {
         setState(() => _registerError = msg);
       }
     }
 
-    // On successful registration → switch to Sign In tab
     if (state is Unauthenticated && _tabIndex == 1) {
       setState(() {
         _tabIndex = 0;
@@ -156,170 +156,337 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  // ── Build ───────────────────────────────────────────────────────────────────
-
   @override
   Widget build(BuildContext context) {
     return BlocListener<AuthBloc, AuthState>(
       listener: _onAuthState,
       child: Scaffold(
-        backgroundColor: _bg,
-        body: SafeArea(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final isWide = constraints.maxWidth >= 600;
-              return isWide ? _wideLayout() : _narrowLayout();
-            },
-          ),
+        backgroundColor: _creamBg,
+        body: LayoutBuilder(
+          builder: (context, constraints) {
+            final isSplit = constraints.maxWidth >= 900;
+            if (isSplit) {
+              return Row(
+                children: [
+                  SizedBox(
+                    width: constraints.maxWidth * 0.42,
+                    child: _BrandPanel(compact: false),
+                  ),
+                  Expanded(child: _FormPanel(state: this)),
+                ],
+              );
+            }
+            return SafeArea(
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _BrandPanel(compact: true),
+                    _FormPanel(state: this, embedded: true),
+                  ],
+                ),
+              ),
+            );
+          },
         ),
       ),
     );
   }
+}
 
-  // ── Wide layout (tablet / web) ───────────────────────────────────────────────
+// ── Brand panel (dark left / mobile header) ───────────────────────────────────
 
-  Widget _wideLayout() {
+class _BrandPanel extends StatelessWidget {
+  const _BrandPanel({required this.compact});
+
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final content = Padding(
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 24 : 48,
+        vertical: compact ? 28 : 56,
+      ),
+      child: Column(
+        crossAxisAlignment:
+            compact ? CrossAxisAlignment.center : CrossAxisAlignment.start,
+        children: [
+          if (!compact) const SizedBox(height: 40),
+          Row(
+            mainAxisSize: compact ? MainAxisSize.min : MainAxisSize.max,
+            children: [
+              Container(
+                width: compact ? 44 : 52,
+                height: compact ? 44 : 52,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFF09030), Color(0xFFD06010)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(
+                  Icons.soup_kitchen,
+                  color: Colors.white,
+                  size: compact ? 24 : 28,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Text(
+                'TableFlow',
+                style: TextStyle(
+                  fontSize: compact ? 26 : 32,
+                  fontWeight: FontWeight.w800,
+                  color: _brandText,
+                  letterSpacing: -0.5,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: compact ? 12 : 20),
+          Text(
+            compact
+                ? 'Sign in to your restaurant workspace'
+                : 'Run your restaurant\nfrom one place.',
+            textAlign: compact ? TextAlign.center : TextAlign.start,
+            style: TextStyle(
+              fontSize: compact ? 15 : 22,
+              fontWeight: FontWeight.w600,
+              color: _brandText.withValues(alpha: 0.92),
+              height: 1.35,
+              letterSpacing: -0.2,
+            ),
+          ),
+          SizedBox(height: compact ? 8 : 14),
+          Text(
+            'Owners use email · Staff use username',
+            textAlign: compact ? TextAlign.center : TextAlign.start,
+            style: const TextStyle(
+              fontSize: 13,
+              color: _brandMuted,
+            ),
+          ),
+          if (!compact) ...[
+            const SizedBox(height: 48),
+            _BrandFeature(
+              icon: Icons.receipt_long_outlined,
+              title: 'Orders & tables',
+              subtitle: 'Seat guests, take orders, track service',
+            ),
+            const SizedBox(height: 20),
+            _BrandFeature(
+              icon: Icons.kitchen_outlined,
+              title: 'Kitchen display',
+              subtitle: 'Route items to stations in real time',
+            ),
+            const SizedBox(height: 20),
+            _BrandFeature(
+              icon: Icons.point_of_sale_outlined,
+              title: 'Billing & reports',
+              subtitle: 'Payments, GST, and daily insights',
+            ),
+          ],
+        ],
+      ),
+    );
+
+    if (compact) {
+      return Container(
+        width: double.infinity,
+        decoration: const BoxDecoration(
+          color: _brandBg,
+          border: Border(bottom: BorderSide(color: _brandBorder)),
+        ),
+        child: content,
+      );
+    }
+
+    return Container(
+      color: _brandBg,
+      child: Stack(
+        children: [
+          Positioned(
+            top: -80,
+            right: -60,
+            child: Container(
+              width: 280,
+              height: 280,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: _brandOrange.withValues(alpha: 0.08),
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: -40,
+            left: -40,
+            child: Container(
+              width: 200,
+              height: 200,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: _brandOrange.withValues(alpha: 0.05),
+              ),
+            ),
+          ),
+          content,
+        ],
+      ),
+    );
+  }
+}
+
+class _BrandFeature extends StatelessWidget {
+  const _BrandFeature({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: _brandOrange.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: _brandOrange.withValues(alpha: 0.25)),
+          ),
+          child: Icon(icon, size: 20, color: _brandOrange),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  color: _brandText,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                style: const TextStyle(color: _brandMuted, fontSize: 12.5),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Form panel ────────────────────────────────────────────────────────────────
+
+class _FormPanel extends StatelessWidget {
+  const _FormPanel({required this.state, this.embedded = false});
+
+  final _LoginScreenState state;
+  final bool embedded;
+
+  @override
+  Widget build(BuildContext context) {
     return Center(
       child: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 32),
+        padding: EdgeInsets.symmetric(
+          horizontal: embedded ? 20 : 40,
+          vertical: embedded ? 24 : 32,
+        ),
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 480),
+          constraints: const BoxConstraints(maxWidth: 420),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _buildHeader(),
-              const SizedBox(height: 32),
-              _buildCard(),
-              const SizedBox(height: 20),
-              _buildFooter(),
+              Text(
+                state._tabIndex == 0 ? 'Welcome back' : 'Create your account',
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w800,
+                  color: _titleColor,
+                  letterSpacing: -0.4,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                state._tabIndex == 0
+                    ? 'Sign in to continue to your restaurant'
+                    : 'Register as a restaurant owner',
+                style: const TextStyle(fontSize: 13.5, color: _mutedText),
+              ),
+              const SizedBox(height: 28),
+              _TabToggle(
+                tabIndex: state._tabIndex,
+                onChanged: (i) => state.setState(() {
+                  state._tabIndex = i;
+                  state._errorMessage = null;
+                  state._registerError = null;
+                }),
+              ),
+              const SizedBox(height: 24),
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                child: state._tabIndex == 0
+                    ? _SignInForm(state: state)
+                    : _RegisterForm(state: state),
+              ),
+              const SizedBox(height: 24),
+              const Center(
+                child: Text(
+                  'By continuing, you agree to our Terms of Service.',
+                  style: TextStyle(color: _mutedText, fontSize: 11.5),
+                  textAlign: TextAlign.center,
+                ),
+              ),
             ],
           ),
         ),
       ),
     );
   }
+}
 
-  // ── Narrow layout (mobile) ───────────────────────────────────────────────────
+class _TabToggle extends StatelessWidget {
+  const _TabToggle({required this.tabIndex, required this.onChanged});
 
-  Widget _narrowLayout() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 28),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const SizedBox(height: 8),
-          _buildHeader(),
-          const SizedBox(height: 28),
-          _buildCard(),
-          const SizedBox(height: 20),
-          _buildFooter(),
-        ],
-      ),
-    );
-  }
+  final int tabIndex;
+  final ValueChanged<int> onChanged;
 
-  // ── Header: back arrow + logo + title ────────────────────────────────────────
-
-  Widget _buildHeader() {
-    return Row(
-      children: [
-        // Back to landing
-        GestureDetector(
-          onTap: () => context.go(AppRoutes.landing),
-          child: Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.6),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: _inputBorder),
-            ),
-            child: const Icon(Icons.arrow_back, size: 18, color: _labelColor),
-          ),
-        ),
-        const SizedBox(width: 12),
-        // Logo
-        Container(
-          width: 38,
-          height: 38,
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFFF09030), Color(0xFFD06010)],
-            ),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: const Icon(Icons.soup_kitchen, color: Colors.white, size: 20),
-        ),
-        const SizedBox(width: 10),
-        const Text(
-          'Owner',
-          style: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.w800,
-            color: _labelColor,
-            letterSpacing: -0.3,
-          ),
-        ),
-      ],
-    );
-  }
-
-  // ── Card ─────────────────────────────────────────────────────────────────────
-
-  Widget _buildCard() {
-    return Container(
-      decoration: BoxDecoration(
-        color: _cardBg,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 24,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _buildTabToggle(),
-          const SizedBox(height: 24),
-          if (_tabIndex == 0) _buildSignInForm() else _buildRegisterForm(),
-        ],
-      ),
-    );
-  }
-
-  // ── Tab toggle: Sign In / Create Account ─────────────────────────────────────
-
-  Widget _buildTabToggle() {
+  @override
+  Widget build(BuildContext context) {
     return Container(
       height: 44,
       decoration: BoxDecoration(
-        color: _accentOrangeLight,
+        color: _accentLight,
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _cardBorder),
       ),
       child: Row(
         children: [
-          _buildTab('Sign In', 0),
-          _buildTab('Create Account', 1),
+          _tab('Sign in', 0),
+          _tab('Create account', 1),
         ],
       ),
     );
   }
 
-  Widget _buildTab(String label, int index) {
-    final selected = _tabIndex == index;
+  Widget _tab(String label, int index) {
+    final selected = tabIndex == index;
     return Expanded(
       child: GestureDetector(
-        onTap: () => setState(() {
-          _tabIndex = index;
-          _errorMessage = null;
-          _registerError = null;
-        }),
+        onTap: () => onChanged(index),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
           margin: const EdgeInsets.all(4),
@@ -332,7 +499,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       color: Colors.black.withValues(alpha: 0.06),
                       blurRadius: 6,
                       offset: const Offset(0, 2),
-                    )
+                    ),
                   ]
                 : null,
           ),
@@ -342,7 +509,7 @@ class _LoginScreenState extends State<LoginScreen> {
               style: TextStyle(
                 fontSize: 13.5,
                 fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                color: selected ? _labelColor : _tabInactive,
+                color: selected ? _titleColor : _hintColor,
               ),
             ),
           ),
@@ -350,64 +517,71 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     );
   }
+}
 
-  // ── Sign In form ──────────────────────────────────────────────────────────────
+class _SignInForm extends StatelessWidget {
+  const _SignInForm({required this.state});
 
-  Widget _buildSignInForm() {
+  final _LoginScreenState state;
+
+  @override
+  Widget build(BuildContext context) {
     return Form(
-      key: _signInFormKey,
+      key: state._signInFormKey,
       child: Column(
+        key: const ValueKey('sign-in'),
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (_errorMessage != null) ...[
-            _buildErrorBanner(_errorMessage!),
+          if (state._errorMessage != null) ...[
+            _ErrorBanner(message: state._errorMessage!),
             const SizedBox(height: 16),
           ],
-          _buildFieldLabel('Email Address'),
+          const _FieldLabel('Email or username'),
           const SizedBox(height: 6),
-          _buildTextField(
-            controller: _emailController,
-            hint: 'james@goldenfork.co',
-            prefixIcon: Icons.mail_outline,
-            keyboardType: TextInputType.emailAddress,
+          _LoginTextField(
+            controller: state._loginIdController,
+            hint: 'owner@email.com or john.smith',
+            prefixIcon: Icons.person_outline,
             textInputAction: TextInputAction.next,
-            validator: _validateEmail,
+            validator: state._validateLoginId,
           ),
           const SizedBox(height: 16),
-          _buildFieldLabel('Password'),
+          const _FieldLabel('Password'),
           const SizedBox(height: 6),
-          _buildTextField(
-            controller: _passwordController,
-            hint: '••••••••',
+          _LoginTextField(
+            controller: state._passwordController,
+            hint: 'Your password',
             prefixIcon: Icons.lock_outline,
-            obscureText: _obscurePassword,
+            obscureText: state._obscurePassword,
             textInputAction: TextInputAction.done,
-            onFieldSubmitted: (_) => _submitSignIn(),
-            validator: _validatePassword,
+            onFieldSubmitted: (_) => state._submitSignIn(),
+            validator: state._validatePassword,
             suffixIcon: IconButton(
               icon: Icon(
-                _obscurePassword
+                state._obscurePassword
                     ? Icons.visibility_outlined
                     : Icons.visibility_off_outlined,
                 size: 18,
                 color: _mutedText,
               ),
               onPressed: () =>
-                  setState(() => _obscurePassword = !_obscurePassword),
+                  state.setState(() => state._obscurePassword = !state._obscurePassword),
             ),
           ),
-          const SizedBox(height: 24),
-          _buildPrimaryButton(
-            label: 'Sign In to Dashboard',
-            loading: _isSubmitting,
-            onPressed: _submitSignIn,
+          const SizedBox(height: 28),
+          _PrimaryButton(
+            label: 'Sign in',
+            loading: state._isSubmitting,
+            onPressed: state._submitSignIn,
           ),
           const SizedBox(height: 14),
           Center(
             child: GestureDetector(
               onTap: () => ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
-                    content: Text('Password reset is not yet available.')),
+                  content: Text('Password reset is not yet available.'),
+                  behavior: SnackBarBehavior.floating,
+                ),
               ),
               child: const Text(
                 'Forgot your password?',
@@ -423,107 +597,134 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     );
   }
+}
 
-  // ── Register form ─────────────────────────────────────────────────────────────
+class _RegisterForm extends StatelessWidget {
+  const _RegisterForm({required this.state});
 
-  Widget _buildRegisterForm() {
+  final _LoginScreenState state;
+
+  @override
+  Widget build(BuildContext context) {
     return Form(
-      key: _registerFormKey,
+      key: state._registerFormKey,
       child: Column(
+        key: const ValueKey('register'),
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (_registerError != null) ...[
-            _buildErrorBanner(_registerError!),
+          if (state._registerError != null) ...[
+            _ErrorBanner(message: state._registerError!),
             const SizedBox(height: 16),
           ],
-          _buildFieldLabel('Full Name'),
+          const _FieldLabel('Full name'),
           const SizedBox(height: 6),
-          _buildTextField(
-            controller: _nameController,
+          _LoginTextField(
+            controller: state._nameController,
             hint: 'Your full name',
             prefixIcon: Icons.person_outline,
             textInputAction: TextInputAction.next,
-            validator: _validateName,
+            validator: state._validateName,
           ),
           const SizedBox(height: 16),
-          _buildFieldLabel('Email Address'),
+          const _FieldLabel('Email address'),
           const SizedBox(height: 6),
-          _buildTextField(
-            controller: _regEmailController,
+          _LoginTextField(
+            controller: state._regEmailController,
             hint: 'james@goldenfork.co',
             prefixIcon: Icons.mail_outline,
             keyboardType: TextInputType.emailAddress,
             textInputAction: TextInputAction.next,
-            validator: _validateEmail,
+            validator: state._validateEmail,
           ),
           const SizedBox(height: 16),
-          _buildFieldLabel('Phone Number'),
+          const _FieldLabel('Phone number'),
           const SizedBox(height: 6),
-          _buildTextField(
-            controller: _phoneController,
+          _LoginTextField(
+            controller: state._phoneController,
             hint: '9876543210',
             prefixIcon: Icons.phone_outlined,
             keyboardType: TextInputType.phone,
             textInputAction: TextInputAction.next,
           ),
           const SizedBox(height: 16),
-          _buildFieldLabel('Password'),
+          const _FieldLabel('Password'),
           const SizedBox(height: 6),
-          _buildTextField(
-            controller: _regPasswordController,
+          _LoginTextField(
+            controller: state._regPasswordController,
             hint: 'Min. 8 characters',
             prefixIcon: Icons.lock_outline,
-            obscureText: _obscureRegPassword,
+            obscureText: state._obscureRegPassword,
             textInputAction: TextInputAction.done,
-            onFieldSubmitted: (_) => _submitRegister(),
-            validator: _validateNewPassword,
+            onFieldSubmitted: (_) => state._submitRegister(),
+            validator: state._validateNewPassword,
             suffixIcon: IconButton(
               icon: Icon(
-                _obscureRegPassword
+                state._obscureRegPassword
                     ? Icons.visibility_outlined
                     : Icons.visibility_off_outlined,
                 size: 18,
                 color: _mutedText,
               ),
-              onPressed: () =>
-                  setState(() => _obscureRegPassword = !_obscureRegPassword),
+              onPressed: () => state.setState(
+                  () => state._obscureRegPassword = !state._obscureRegPassword),
             ),
           ),
-          const SizedBox(height: 24),
-          _buildPrimaryButton(
-            label: 'Continue to Setup →',
-            loading: _isRegistering,
-            onPressed: _submitRegister,
+          const SizedBox(height: 28),
+          _PrimaryButton(
+            label: 'Create account',
+            loading: state._isRegistering,
+            onPressed: state._submitRegister,
           ),
         ],
       ),
     );
   }
+}
 
-  // ── Shared sub-widgets ────────────────────────────────────────────────────────
+// ── Shared widgets ──────────────────────────────────────────────────────────
 
-  Widget _buildFieldLabel(String label) {
+class _FieldLabel extends StatelessWidget {
+  const _FieldLabel(this.text);
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
     return Text(
-      label,
+      text,
       style: const TextStyle(
         fontSize: 13,
         fontWeight: FontWeight.w600,
-        color: _labelColor,
+        color: _titleColor,
       ),
     );
   }
+}
 
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String hint,
-    required IconData prefixIcon,
-    bool obscureText = false,
-    TextInputType? keyboardType,
-    TextInputAction? textInputAction,
-    ValueChanged<String>? onFieldSubmitted,
-    FormFieldValidator<String>? validator,
-    Widget? suffixIcon,
-  }) {
+class _LoginTextField extends StatelessWidget {
+  const _LoginTextField({
+    required this.controller,
+    required this.hint,
+    required this.prefixIcon,
+    this.obscureText = false,
+    this.keyboardType,
+    this.textInputAction,
+    this.onFieldSubmitted,
+    this.validator,
+    this.suffixIcon,
+  });
+
+  final TextEditingController controller;
+  final String hint;
+  final IconData prefixIcon;
+  final bool obscureText;
+  final TextInputType? keyboardType;
+  final TextInputAction? textInputAction;
+  final ValueChanged<String>? onFieldSubmitted;
+  final FormFieldValidator<String>? validator;
+  final Widget? suffixIcon;
+
+  @override
+  Widget build(BuildContext context) {
     return TextFormField(
       controller: controller,
       obscureText: obscureText,
@@ -531,23 +732,23 @@ class _LoginScreenState extends State<LoginScreen> {
       textInputAction: textInputAction,
       onFieldSubmitted: onFieldSubmitted,
       validator: validator,
-      style: const TextStyle(fontSize: 14, color: _labelColor),
+      style: const TextStyle(fontSize: 14, color: _titleColor),
       decoration: InputDecoration(
         hintText: hint,
         hintStyle: const TextStyle(color: _hintColor, fontSize: 14),
         prefixIcon: Icon(prefixIcon, size: 18, color: _hintColor),
         suffixIcon: suffixIcon,
         filled: true,
-        fillColor: _inputBg,
+        fillColor: _cardBg,
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: _inputBorder),
+          borderSide: const BorderSide(color: _cardBorder),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFFBF4010), width: 1.5),
+          borderSide: const BorderSide(color: _accentOrange, width: 1.5),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
@@ -561,12 +762,21 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     );
   }
+}
 
-  Widget _buildPrimaryButton({
-    required String label,
-    required bool loading,
-    required VoidCallback onPressed,
-  }) {
+class _PrimaryButton extends StatelessWidget {
+  const _PrimaryButton({
+    required this.label,
+    required this.loading,
+    required this.onPressed,
+  });
+
+  final String label;
+  final bool loading;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
     return SizedBox(
       height: 50,
       child: ElevatedButton(
@@ -574,7 +784,7 @@ class _LoginScreenState extends State<LoginScreen> {
         style: ElevatedButton.styleFrom(
           backgroundColor: _accentOrange,
           foregroundColor: Colors.white,
-          disabledBackgroundColor: _accentOrange.withValues(alpha: 0.6),
+          disabledBackgroundColor: _accentOrange.withValues(alpha: 0.55),
           elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
@@ -594,20 +804,25 @@ class _LoginScreenState extends State<LoginScreen> {
                 style: const TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
-                  letterSpacing: 0.2,
                 ),
               ),
       ),
     );
   }
+}
 
-  Widget _buildErrorBanner(String message) {
+class _ErrorBanner extends StatelessWidget {
+  const _ErrorBanner({required this.message});
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
         color: const Color(0xFFFEE2E2),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: _errorRed.withValues(alpha: 0.4)),
+        border: Border.all(color: _errorRed.withValues(alpha: 0.35)),
       ),
       child: Row(
         children: [
@@ -624,21 +839,6 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  // ── Footer ────────────────────────────────────────────────────────────────────
-
-  Widget _buildFooter() {
-    return const Center(
-      child: Text(
-        'By continuing, you agree to our Terms of Service.',
-        style: TextStyle(
-          color: _mutedText,
-          fontSize: 12,
-        ),
-        textAlign: TextAlign.center,
       ),
     );
   }
